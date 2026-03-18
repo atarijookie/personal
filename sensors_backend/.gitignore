@@ -1,0 +1,9 @@
+# Python virtual environment
+.venv/
+
+# Logs
+*.log
+*.log.1
+
+# PID files
+*.pid
