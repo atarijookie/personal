@@ -12,38 +12,48 @@ if [[ -f ".env" ]]; then
 fi
 
 : "${PID_FILE:=sensor_tcp_ingest.pid}"
+: "${API_PID_FILE:=sensor_api_server.pid}"
 
-if [[ ! -f "$PID_FILE" ]]; then
-  echo "PID file not found: $PID_FILE"
-  exit 0
-fi
+stop_by_pidfile() {
+  local pid_file="$1"
+  local label="$2"
 
-pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-if [[ -z "${pid}" ]]; then
-  echo "PID file is empty: $PID_FILE"
-  rm -f "$PID_FILE"
-  exit 0
-fi
-
-if ! kill -0 "$pid" >/dev/null 2>&1; then
-  echo "Process $pid is not running."
-  rm -f "$PID_FILE"
-  exit 0
-fi
-
-kill "$pid" >/dev/null 2>&1 || true
-
-for _ in {1..50}; do
-  if ! kill -0 "$pid" >/dev/null 2>&1; then
-    echo "Stopped process $pid."
-    rm -f "$PID_FILE"
-    exit 0
+  if [[ ! -f "$pid_file" ]]; then
+    echo "$label PID file not found: $pid_file"
+    return 0
   fi
-  sleep 0.1
-done
 
-echo "Process $pid did not stop gracefully; sending SIGKILL."
-kill -9 "$pid" >/dev/null 2>&1 || true
-rm -f "$PID_FILE"
-echo "Stopped process $pid."
+  local pid
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ -z "${pid}" ]]; then
+    echo "$label PID file is empty: $pid_file"
+    rm -f "$pid_file"
+    return 0
+  fi
+
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    echo "$label process $pid is not running."
+    rm -f "$pid_file"
+    return 0
+  fi
+
+  kill "$pid" >/dev/null 2>&1 || true
+
+  for _ in {1..50}; do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      echo "Stopped $label process $pid."
+      rm -f "$pid_file"
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  echo "$label process $pid did not stop gracefully; sending SIGKILL."
+  kill -9 "$pid" >/dev/null 2>&1 || true
+  rm -f "$pid_file"
+  echo "Stopped $label process $pid."
+}
+
+stop_by_pidfile "$PID_FILE" "TCP ingester"
+stop_by_pidfile "$API_PID_FILE" "Flask API"
 

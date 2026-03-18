@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Temp monthly</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+      h1 { margin: 0 0 12px 0; }
+      #status { color: #444; margin: 8px 0 16px 0; }
+      .device { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+      .muted { color: #666; font-size: 12px; }
+      .err { color: #b00020; }
+      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 520px; }
+      .row { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px 0; flex-wrap: wrap; }
+      input[type="month"], select { padding: 6px 8px; }
+      button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
+      button:hover { background: #f0f0f0; }
+      canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
+      #hover { margin-top: 8px; max-width: 980px; }
+      #hover .title { font-weight: 600; margin-bottom: 6px; }
+      #hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
+      #hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <h1>Temp monthly</h1>
+    <div id="status" class="muted">Loading devices…</div>
+
+    <div class="row">
+      <label for="month"><b>Month</b></label>
+      <button id="prevMonth" type="button" title="Previous month">◀</button>
+      <input id="month" type="month" />
+      <button id="nextMonth" type="button" title="Next month">▶</button>
+      <a href="/" class="muted" style="margin-left: 10px;">Back</a>
+    </div>
+
+    <div class="box">
+      <div class="muted" style="margin-bottom: 8px;"><b>Devices</b></div>
+      <div id="devices"></div>
+    </div>
+
+    <h2>Temperatures (daily average)</h2>
+    <canvas id="chart" width="980" height="360"></canvas>
+    <div id="hover" class="muted">Move mouse over the graph…</div>
+
+    <script>
+      let devicesById = new Map();
+      let tempMonthData = null; // response from /api/temp_month
+      let hoverIdx = null;      // 0..(days-1)
+
+      function getSelectedSensorIds() {
+        const cbs = document.querySelectorAll('#devices input[type="checkbox"]');
+        const ids = [];
+        for (const cb of cbs) if (cb.checked) ids.push(parseInt(cb.value, 10));
+        ids.sort((a, b) => a - b);
+        return ids;
+      }
+
+      function paletteColor(i) {
+        const colors = ["#1976d2", "#d32f2f", "#388e3c", "#f57c00", "#7b1fa2", "#00796b", "#5d4037", "#455a64"];
+        return colors[i % colors.length];
+      }
+
+      function chartGeometry(canvas) {
+        const left = 50, right = 20, top = 15, bottom = 30;
+        const w = canvas.width - left - right;
+        const h = canvas.height - top - bottom;
+        return { left, right, top, bottom, w, h };
+      }
+
+      function visibleSeries() {
+        if (!tempMonthData || !tempMonthData.series) return [];
+        const selected = new Set(getSelectedSensorIds());
+        return tempMonthData.series.filter(s => selected.has(s.sensor_id));
+      }
+
+      function niceSensorLabel(s) {
+        return s.name ? `${s.sensor_id} — ${s.name}` : String(s.sensor_id);
+      }
+
+      function roundedRectPath(ctx, x, y, w, h, r) {
+        const rr = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      }
+
+      function drawTooltip(ctx, canvas, idx, series, xFor) {
+        const geom = chartGeometry(canvas);
+        const x = xFor(idx);
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, geom.top);
+        ctx.lineTo(x, geom.top + geom.h);
+        ctx.stroke();
+
+        const day = idx + 1;
+        const header = `Day ${day}`;
+        const font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.font = font;
+
+        const lines = [];
+        for (let i = 0; i < series.length; i++) {
+          const s = series[i];
+          const v = s.temps[idx];
+          if (v === null || v === undefined) continue;
+          lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${v.toFixed(2)} °C` });
+        }
+
+        let width = ctx.measureText(header).width;
+        for (const l of lines) width = Math.max(width, ctx.measureText(`${l.label}  ${l.value}`).width + 18);
+        width = Math.min(width + 16, 420);
+        const height = 24 + lines.length * 16 + 10;
+        let bx = x + 10;
+        let by = geom.top + 10;
+        if (bx + width > canvas.width - 10) bx = x - width - 10;
+
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.strokeStyle = "rgba(0,0,0,0.15)";
+        ctx.lineWidth = 1;
+        roundedRectPath(ctx, bx, by, width, height, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#111";
+        ctx.fillText(header, bx + 10, by + 18);
+
+        let y = by + 36;
+        for (const l of lines) {
+          ctx.fillStyle = l.color;
+          ctx.fillRect(bx + 10, y - 10, 10, 10);
+          ctx.fillStyle = "#111";
+          ctx.fillText(l.label, bx + 26, y - 1);
+          ctx.fillStyle = "#555";
+          const valW = ctx.measureText(l.value).width;
+          ctx.fillText(l.value, bx + width - 10 - valW, y - 1);
+          y += 16;
+        }
+
+        ctx.restore();
+      }
+
+      function drawChart() {
+        const canvas = document.getElementById("chart");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!tempMonthData || !tempMonthData.series) {
+          ctx.fillStyle = "#666";
+          ctx.fillText("No data loaded.", 10, 20);
+          return;
+        }
+
+        const series = visibleSeries();
+        const days = tempMonthData.days_in_month || 30;
+        const { left, top, w, h } = chartGeometry(canvas);
+
+        let minY = Infinity, maxY = -Infinity;
+        for (const s of series) {
+          for (const v of (s.temps || [])) {
+            if (v === null || v === undefined) continue;
+            minY = Math.min(minY, v);
+            maxY = Math.max(maxY, v);
+          }
+        }
+        if (!isFinite(minY) || !isFinite(maxY)) {
+          ctx.fillStyle = "#666";
+          ctx.fillText("Select at least one sensor with data.", 10, 20);
+          return;
+        }
+        if (minY === maxY) { minY -= 1; maxY += 1; }
+        const pad = (maxY - minY) * 0.1;
+        minY -= pad; maxY += pad;
+
+        function xFor(i) { return left + (i / Math.max(1, days - 1)) * w; }
+        function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
+
+        ctx.strokeStyle = "#eee";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= days; i++) {
+          const x = left + (i / days) * w;
+          ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + h); ctx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+          const y = top + (i / 5) * h;
+          ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#bbb";
+        ctx.beginPath();
+        ctx.moveTo(left, top);
+        ctx.lineTo(left, top + h);
+        ctx.lineTo(left + w, top + h);
+        ctx.stroke();
+
+        ctx.fillStyle = "#444";
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        for (let i = 0; i <= 5; i++) {
+          const v = maxY - (i / 5) * (maxY - minY);
+          const y = top + (i / 5) * h;
+          ctx.fillText(v.toFixed(1), 8, y + 4);
+        }
+
+        // X labels: days 1, 5, 10, ...
+        for (let d = 1; d <= days; d += 5) {
+          const x = xFor(d - 1);
+          ctx.fillText(String(d), x - 4, top + h + 20);
+        }
+
+        series.forEach((s, idx) => {
+          ctx.strokeStyle = paletteColor(idx);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          let started = false;
+          for (let i = 0; i < days; i++) {
+            const v = s.temps[i];
+            if (v === null || v === undefined) { started = false; continue; }
+            const x = xFor(i);
+            const y = yFor(v);
+            if (!started) { ctx.moveTo(x, y); started = true; }
+            else { ctx.lineTo(x, y); }
+          }
+          ctx.stroke();
+        });
+
+        let lx = left + 8, ly = top + 8;
+        series.forEach((s, idx) => {
+          ctx.fillStyle = paletteColor(idx);
+          ctx.fillRect(lx, ly - 10, 10, 10);
+          ctx.fillStyle = "#222";
+          ctx.fillText(niceSensorLabel(s), lx + 14, ly - 1);
+          ly += 16;
+          if (ly > top + h - 10) { ly = top + 8; lx += 180; }
+        });
+
+        if (hoverIdx !== null) drawTooltip(ctx, canvas, hoverIdx, series, xFor);
+      }
+
+      function parseMonthValue(v) {
+        // v = "YYYY-MM"
+        const [y, m] = v.split("-").map(n => parseInt(n, 10));
+        return { year: y, month: m };
+      }
+
+      function setMonthValue(year, month) {
+        const mm = String(month).padStart(2, "0");
+        document.getElementById("month").value = `${year}-${mm}`;
+      }
+
+      function shiftMonth(delta) {
+        const monthEl = document.getElementById("month");
+        const { year, month } = parseMonthValue(monthEl.value);
+        const d = new Date(year, month - 1, 1);
+        d.setMonth(d.getMonth() + delta);
+        setMonthValue(d.getFullYear(), d.getMonth() + 1);
+        fetchTempMonth();
+      }
+
+      async function fetchTempMonth() {
+        const monthEl = document.getElementById("month");
+        const { year, month } = parseMonthValue(monthEl.value);
+        try {
+          const resp = await fetch("/api/temp_month", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ year, month }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(JSON.stringify(data));
+          tempMonthData = data;
+          drawChart();
+        } catch (e) {
+          const hoverEl = document.getElementById("hover");
+          hoverEl.textContent = "Failed to load month data: " + e;
+          hoverEl.classList.add("err");
+        }
+      }
+
+      async function loadDevices() {
+        const statusEl = document.getElementById("status");
+        const devicesEl = document.getElementById("devices");
+        devicesEl.innerHTML = "";
+        try {
+          const resp = await fetch("/api/devices", { headers: { "Accept": "application/json" } });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const devices = await resp.json();
+          statusEl.textContent = `Loaded ${devices.length} device(s).`;
+          statusEl.classList.remove("err");
+
+          let lowestId = null;
+          for (const d of devices) {
+            const id = d.id;
+            const name = d.name ?? "";
+            const labelText = name ? `${id} — ${name}` : `${id}`;
+
+            const row = document.createElement("div");
+            row.className = "device";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.id = `dev_${id}`;
+            cb.value = String(id);
+            cb.addEventListener("change", drawChart);
+
+            const label = document.createElement("label");
+            label.htmlFor = cb.id;
+            label.textContent = labelText;
+
+            row.appendChild(cb);
+            row.appendChild(label);
+            devicesEl.appendChild(row);
+
+            if (lowestId === null || id < lowestId) lowestId = id;
+            devicesById.set(id, { id, name });
+          }
+
+          if (lowestId !== null) {
+            const firstCb = document.getElementById(`dev_${lowestId}`);
+            if (firstCb) firstCb.checked = true;
+          }
+        } catch (e) {
+          statusEl.textContent = "Failed to load devices: " + e;
+          statusEl.classList.add("err");
+        }
+      }
+
+      const now = new Date();
+      setMonthValue(now.getFullYear(), now.getMonth() + 1);
+
+      document.getElementById("month").addEventListener("change", fetchTempMonth);
+      document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
+      document.getElementById("nextMonth").addEventListener("click", () => shiftMonth(1));
+
+      const canvas = document.getElementById("chart");
+      canvas.addEventListener("mousemove", (ev) => {
+        if (!tempMonthData || !tempMonthData.series) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const { left, w } = chartGeometry(canvas);
+        const xCanvas = (x / rect.width) * canvas.width;
+        const days = tempMonthData.days_in_month || 30;
+        if (xCanvas < left || xCanvas > left + w) { hoverIdx = null; drawChart(); return; }
+        const t = (xCanvas - left) / w;
+        const idx = Math.max(0, Math.min(days - 1, Math.round(t * (days - 1))));
+        hoverIdx = idx;
+
+        const hoverEl = document.getElementById("hover");
+        const series = visibleSeries();
+        if (!series.length) { hoverEl.textContent = `Day ${idx + 1} — select at least one device`; return; }
+
+        let html = `<div class="title">Day ${idx + 1}</div>`;
+        series.forEach((s, i) => {
+          const v = s.temps[idx];
+          const name = niceSensorLabel(s);
+          const color = paletteColor(i);
+          if (v === null || v === undefined) html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span></div>`;
+          else html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span><span class="muted">${v.toFixed(2)} °C</span></div>`;
+        });
+        hoverEl.innerHTML = html;
+        hoverEl.classList.remove("err");
+        drawChart();
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        const hoverEl = document.getElementById("hover");
+        hoverEl.textContent = "Move mouse over the graph…";
+        hoverIdx = null;
+        drawChart();
+      });
+
+      (async () => {
+        await loadDevices();
+        await fetchTempMonth();
+      })();
+    </script>
+  </body>
+</html>
+

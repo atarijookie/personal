@@ -193,14 +193,29 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
     temps_str = ", ".join("null" if v is None else str(v) for v in temps_vals)
     hum_str = ", ".join("null" if v is None else str(v) for v in hum_vals)
 
+    temps_nonnull = [v for v in temps_vals if v is not None]
+    hum_nonnull = [float(v) for v in hum_vals if v is not None]
+    t_min = min(temps_nonnull) if temps_nonnull else None
+    t_max = max(temps_nonnull) if temps_nonnull else None
+    t_avg = (sum(temps_nonnull) / len(temps_nonnull)) if temps_nonnull else None
+    h_min = min(hum_nonnull) if hum_nonnull else None
+    h_max = max(hum_nonnull) if hum_nonnull else None
+    h_avg = (sum(hum_nonnull) / len(hum_nonnull)) if hum_nonnull else None
+
     sql = """
-    INSERT INTO temps_aggr (day, sensor_id, temps, humidities)
-    VALUES (CURRENT_DATE, %s, %s, %s)
+    INSERT INTO temps_aggr (day, sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, temps, humidities)
+    VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (day, sensor_id) DO UPDATE
-      SET temps = EXCLUDED.temps,
+      SET t_min = EXCLUDED.t_min,
+          t_max = EXCLUDED.t_max,
+          t_avg = EXCLUDED.t_avg,
+          h_min = EXCLUDED.h_min,
+          h_max = EXCLUDED.h_max,
+          h_avg = EXCLUDED.h_avg,
+          temps = EXCLUDED.temps,
           humidities = EXCLUDED.humidities;
     """
-    params = (sensor_id, temps_str, hum_str)
+    params = (sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, temps_str, hum_str)
     logger.info("SQL: %s params=%s", " ".join(sql.split()), params)
 
     with conn.cursor() as cur:
