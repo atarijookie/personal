@@ -14,7 +14,7 @@ static const uint8_t espNowBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 static void onDataSent(uint8_t* mac_addr, uint8_t status);
 
 // GPIO assignments (per your request)
-static const uint8_t PIN_DONE = 2;        // GPIO2
+static const uint8_t PIN_DONE = 3;        // GPIO3
 static const uint8_t PIN_PWROUT_DIV = 0;  // GPIO0 (ADC input)
 
 // I2C pin assignments for AHT20 (per your request)

@@ -32,9 +32,9 @@
 <layer number="22" name="bPlace" color="11" fill="1" visible="no" active="yes"/>
 <layer number="23" name="tOrigins" color="15" fill="1" visible="yes" active="yes"/>
 <layer number="24" name="bOrigins" color="15" fill="1" visible="no" active="yes"/>
-<layer number="25" name="tNames" color="7" fill="1" visible="no" active="yes"/>
+<layer number="25" name="tNames" color="7" fill="1" visible="yes" active="yes"/>
 <layer number="26" name="bNames" color="7" fill="1" visible="no" active="yes"/>
-<layer number="27" name="tValues" color="7" fill="1" visible="no" active="yes"/>
+<layer number="27" name="tValues" color="7" fill="1" visible="yes" active="yes"/>
 <layer number="28" name="bValues" color="7" fill="1" visible="no" active="yes"/>
 <layer number="29" name="tStop" color="7" fill="3" visible="no" active="yes"/>
 <layer number="30" name="bStop" color="7" fill="6" visible="no" active="yes"/>
@@ -1002,21 +1002,21 @@ einem neuen Namen ab.</description>
 <element name="JP1" library="jumper" package="JP1" value="" x="2.159" y="20.955" smashed="yes" rot="R180">
 <attribute name="VALUE" x="-0.762" y="23.495" size="1.27" layer="27" ratio="10" rot="R270"/>
 </element>
-<element name="C2" library="293D107X9010C2TE3" package="CAPPM6032X280N" value="100 uF" x="20.701" y="19.177" smashed="yes" rot="R270">
-<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="HEIGHT" value="2.8mm" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_NAME" value="Vishay" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_PART_NUMBER" value="293D107X9010C2TE3" x="20.701" y="19.177" size="1.778" layer="27" rot="R270" display="off"/>
+<element name="C2" library="293D107X9010C2TE3" package="CAPPM6032X280N" value="100 uF" x="29.464" y="18.288" smashed="yes" rot="R270">
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="HEIGHT" value="2.8mm" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="MANUFACTURER_NAME" value="Vishay" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="293D107X9010C2TE3" x="29.464" y="18.288" size="1.778" layer="27" rot="R270" display="off"/>
 </element>
-<element name="C3" library="293D226X9010A2TE3" package="CAPPM3216X180N" value="22 uF" x="23.749" y="18.923" smashed="yes" rot="R270">
-<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="HEIGHT" value="1.8mm" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_NAME" value="Vishay" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_PART_NUMBER" value="293D226X9010A2TE3" x="23.749" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<element name="C3" library="293D226X9010A2TE3" package="CAPPM3216X180N" value="10 uF" x="21.59" y="18.923" smashed="yes" rot="R270">
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="HEIGHT" value="1.8mm" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="MANUFACTURER_NAME" value="Vishay" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="293D226X9010A2TE3" x="21.59" y="18.923" size="1.778" layer="27" rot="R270" display="off"/>
 </element>
 <element name="IC1" library="ESP32-C3-WROOM-02-N4" package="ESP32C3WROOM02N4" value="ESP32-C3-WROOM-02-N4" x="15.621" y="7.366" smashed="yes" rot="R180">
 <attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="15.621" y="7.366" size="1.778" layer="27" rot="R180" display="off"/>
@@ -1035,21 +1035,21 @@ einem neuen Namen ab.</description>
 </element>
 <element name="R4" library="microbuilder" package="_0603" value="10k" x="29.083" y="2.667" smashed="yes"/>
 <element name="R5" library="microbuilder" package="_0603" value="10k" x="29.083" y="11.684" smashed="yes"/>
-<element name="PS1" library="AP2202K-3.3TRG1" package="SOT95P282X145-5N" value="AP2202K-3.3TRG1" x="27.432" y="19.177" smashed="yes">
-<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
-<attribute name="DESCRIPTION" value="DiodesZetex AP2202K-3.3TRG1, LDO Voltage Regulator, 150mA, 3.3 V +/-2%, 2.5 to 13.2 Vin, 5-Pin SOT-23" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
-<attribute name="HEIGHT" value="1.45mm" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
-<attribute name="MANUFACTURER_NAME" value="Diodes Incorporated" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
-<attribute name="MANUFACTURER_PART_NUMBER" value="AP2202K-3.3TRG1" x="27.432" y="19.177" size="1.778" layer="27" display="off"/>
+<element name="PS1" library="AP2202K-3.3TRG1" package="SOT95P282X145-5N" value="LDI8119-3.3EN-DIO" x="25.273" y="19.177" smashed="yes">
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
+<attribute name="DESCRIPTION" value="DiodesZetex AP2202K-3.3TRG1, LDO Voltage Regulator, 150mA, 3.3 V +/-2%, 2.5 to 13.2 Vin, 5-Pin SOT-23" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
+<attribute name="HEIGHT" value="1.45mm" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
+<attribute name="MANUFACTURER_NAME" value="Diodes Incorporated" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="AP2202K-3.3TRG1" x="25.273" y="19.177" size="1.778" layer="27" display="off"/>
 </element>
-<element name="C4" library="293D226X9010A2TE3" package="CAPPM3216X180N" value="22 uF" x="30.734" y="18.796" smashed="yes" rot="R270">
-<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="HEIGHT" value="1.8mm" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_NAME" value="Vishay" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
-<attribute name="MANUFACTURER_PART_NUMBER" value="293D226X9010A2TE3" x="30.734" y="18.796" size="1.778" layer="27" rot="R270" display="off"/>
+<element name="C4" library="293D226X9010A2TE3" package="CAPPM3216X180N" value="22 uF" x="38.608" y="22.352" smashed="yes">
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
+<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
+<attribute name="HEIGHT" value="1.8mm" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
+<attribute name="MANUFACTURER_NAME" value="Vishay" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="293D226X9010A2TE3" x="38.608" y="22.352" size="1.778" layer="27" display="off"/>
 </element>
 <element name="C5" library="microbuilder" package="0805-NO" value="100 nF" x="33.147" y="18.796" smashed="yes" rot="R270"/>
 <element name="SV2" library="con-lstb" package="MA03-1" value="" x="38.481" y="4.318" smashed="yes" rot="R270">
@@ -1073,14 +1073,12 @@ einem neuen Namen ab.</description>
 <element name="R8" library="microbuilder" package="_0603" value="4k7" x="29.083" y="8.763" smashed="yes"/>
 <element name="R9" library="microbuilder" package="_0603" value="4k7" x="29.083" y="7.112" smashed="yes"/>
 <element name="R10" library="microbuilder" package="_0603" value="10k" x="26.67" y="22.987" smashed="yes" rot="R180"/>
-<element name="R11" library="microbuilder" package="_0603" value="10k" x="30.48" y="22.987" smashed="yes" rot="R180"/>
+<element name="R11" library="microbuilder" package="_0603" value="10k" x="33.401" y="22.479" smashed="yes" rot="R180"/>
 <element name="C8" library="microbuilder" package="_0603" value="100 nF" x="32.258" y="1.143" smashed="yes"/>
 <element name="U1" library="Longan-IC" package="SNR6-1.0-3X3X1MM" value="AHT20" x="54.102" y="12.192" smashed="yes">
 <attribute name="VALUE" x="54.102" y="12.446" size="0.6096" layer="27" ratio="12" align="center"/>
 </element>
-<element name="C9" library="microbuilder" package="_0603" value="100 nF" x="49.657" y="13.081" smashed="yes">
-<attribute name="VALUE" x="48.387" y="11.5887" size="0.4064" layer="27" ratio="10"/>
-</element>
+<element name="C9" library="microbuilder" package="_0603" value="100 nF" x="49.657" y="13.081" smashed="yes"/>
 <element name="IC2" library="ESP32-WROOM-32UE-N16" package="ESP32WROOM32UEN16" value="ESP32-WROOM-32UE-N16" x="22.098" y="11.938" smashed="yes" rot="MR180">
 <attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" x="22.098" y="11.938" size="1.778" layer="28" rot="MR180" display="off"/>
 <attribute name="DESCRIPTION" value="Module: IoT; Bluetooth Low Energy,WiFi; SMD; 18x19.2x3.2mm; U.FL" x="22.098" y="11.938" size="1.778" layer="28" rot="MR180" display="off"/>
@@ -1090,6 +1088,8 @@ einem neuen Namen ab.</description>
 <attribute name="MANUFACTURER_PART_NUMBER" value="ESP32-WROOM-32UE-N16" x="22.098" y="11.938" size="1.778" layer="28" rot="MR180" display="off"/>
 <attribute name="VALUE" x="22.098" y="11.938" size="1.27" layer="28" rot="MR180" align="center"/>
 </element>
+<element name="C10" library="microbuilder" package="_0603" value="100 nF" x="33.401" y="24.003" smashed="yes"/>
+<element name="C11" library="microbuilder" package="_0603" value="100 nF" x="19.558" y="18.923" smashed="yes" rot="R270"/>
 </elements>
 <signals>
 <signal name="GND">
@@ -1099,7 +1099,6 @@ einem neuen Namen ab.</description>
 <contactref element="R3" pad="1"/>
 <contactref element="JP1" pad="2"/>
 <contactref element="U2" pad="2"/>
-<contactref element="C2" pad="2"/>
 <contactref element="C3" pad="2"/>
 <contactref element="IC1" pad="9"/>
 <contactref element="IC1" pad="19"/>
@@ -1131,24 +1130,19 @@ einem neuen Namen ab.</description>
 <wire x1="4.8895" y1="14.478" x2="5.207" y2="14.7955" width="0.3048" layer="1"/>
 <wire x1="5.207" y1="14.7955" x2="5.207" y2="17.145" width="0.3048" layer="1"/>
 <wire x1="7.493" y1="17.145" x2="10.541" y2="17.145" width="0.3048" layer="1"/>
-<wire x1="25.019" y1="16.4465" x2="25.019" y2="17.3355" width="0.3048" layer="1"/>
-<wire x1="25.019" y1="17.3355" x2="24.7015" y2="17.653" width="0.3048" layer="1"/>
-<wire x1="24.7015" y1="17.653" x2="23.749" y2="17.653" width="0.3048" layer="1"/>
-<wire x1="23.749" y1="17.653" x2="23.749" y2="17.623" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="17.496" x2="30.734" y2="16.129" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="16.129" x2="25.3365" y2="16.129" width="0.3048" layer="1"/>
-<wire x1="25.3365" y1="16.129" x2="25.019" y2="16.4465" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="17.496" x2="33.147" y2="17.496" width="0.3048" layer="1"/>
+<wire x1="22.86" y1="16.8275" x2="22.86" y2="17.3355" width="0.3048" layer="1"/>
+<wire x1="22.86" y1="17.3355" x2="22.5425" y2="17.653" width="0.3048" layer="1"/>
+<wire x1="22.5425" y1="17.653" x2="21.59" y2="17.653" width="0.3048" layer="1"/>
+<wire x1="21.59" y1="17.653" x2="21.59" y2="17.623" width="0.3048" layer="1"/>
+<wire x1="23.1775" y1="16.51" x2="22.86" y2="16.8275" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="17.496" x2="33.147" y2="17.846" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="14.605" x2="31.0515" y2="14.605" width="0.3048" layer="1"/>
 <wire x1="31.0515" y1="14.605" x2="30.734" y2="14.9225" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="14.9225" x2="30.734" y2="16.129" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="17.846" x2="34.991" y2="17.846" width="0.3048" layer="1"/>
 <wire x1="34.991" y1="17.846" x2="35.306" y2="18.161" width="0.3048" layer="1"/>
 <via x="35.306" y="18.161" extent="1-16" drill="0.5"/>
 <wire x1="35.306" y1="18.161" x2="35.306" y2="22.733" width="0.3048" layer="16"/>
 <via x="35.306" y="22.733" extent="1-16" drill="0.5"/>
-<wire x1="35.052" y1="22.987" x2="31.242" y2="22.987" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="14.605" x2="38.481" y2="14.605" width="0.3048" layer="1"/>
 <wire x1="38.481" y1="14.605" x2="38.481" y2="14.478" width="0.3048" layer="1"/>
 <contactref element="C8" pad="2"/>
@@ -1170,7 +1164,6 @@ einem neuen Namen ab.</description>
 <vertex x="-0.508" y="-0.127"/>
 </polygon>
 <via x="9.271" y="15.621" extent="1-16" drill="0.5"/>
-<wire x1="35.052" y1="22.987" x2="35.306" y2="22.733" width="0.3048" layer="1"/>
 <contactref element="U1" pad="5"/>
 <wire x1="55.402" y1="12.192" x2="56.896" y2="12.192" width="0.3048" layer="1"/>
 <via x="56.896" y="12.192" extent="1-16" drill="0.5"/>
@@ -1206,7 +1199,7 @@ einem neuen Namen ab.</description>
 <wire x1="52.705" y1="11.176" x2="52.197" y2="11.684" width="0.3048" layer="16"/>
 <wire x1="52.197" y1="11.684" x2="41.148" y2="11.684" width="0.3048" layer="16"/>
 <via x="2.159" y="17.018" extent="1-16" drill="0.5"/>
-<via x="20.701" y="19.177" extent="1-16" drill="0.5"/>
+<via x="30.607" y="24.003" extent="1-16" drill="0.5"/>
 <via x="16.764" y="11.049" extent="1-16" drill="0.5"/>
 <via x="5.842" y="3.937" extent="1-16" drill="0.5"/>
 <via x="6.096" y="9.525" extent="1-16" drill="0.5"/>
@@ -1214,10 +1207,19 @@ einem neuen Namen ab.</description>
 <via x="27.305" y="4.064" extent="1-16" drill="0.5"/>
 <via x="32.639" y="3.81" extent="1-16" drill="0.5"/>
 <via x="38.608" y="9.525" extent="1-16" drill="0.5"/>
-<via x="27.178" y="16.637" extent="1-16" drill="0.5"/>
+<via x="25.019" y="16.637" extent="1-16" drill="0.5"/>
 <via x="8.763" y="24.003" extent="1-16" drill="0.5"/>
 <via x="14.732" y="24.257" extent="1-16" drill="0.5"/>
 <via x="35.306" y="1.778" extent="1-16" drill="0.5"/>
+<contactref element="C10" pad="2"/>
+<contactref element="C11" pad="2"/>
+<contactref element="C2" pad="2"/>
+<wire x1="23.1775" y1="16.51" x2="25.019" y2="16.51" width="0.3048" layer="1"/>
+<wire x1="25.019" y1="16.51" x2="25.019" y2="16.637" width="0.3048" layer="1"/>
+<wire x1="34.163" y1="22.479" x2="34.417" y2="22.733" width="0.3048" layer="1"/>
+<wire x1="34.417" y1="22.733" x2="35.306" y2="22.733" width="0.3048" layer="1"/>
+<wire x1="34.163" y1="24.003" x2="34.163" y2="22.479" width="0.3048" layer="1"/>
+<via x="39.878" y="24.13" extent="1-16" drill="0.5"/>
 </signal>
 <signal name="DONE">
 <contactref element="U2" pad="4"/>
@@ -1310,27 +1312,29 @@ einem neuen Namen ab.</description>
 <signal name="PWROUT">
 <contactref element="Q1" pad="3"/>
 <contactref element="D1" pad="A"/>
-<contactref element="C2" pad="1"/>
 <contactref element="C3" pad="1"/>
 <contactref element="PS1" pad="1"/>
 <contactref element="PS1" pad="3"/>
 <contactref element="R10" pad="2"/>
 <wire x1="15.732" y1="21.844" x2="17.907" y2="21.844" width="0.3048" layer="1"/>
 <wire x1="17.907" y1="21.844" x2="17.907" y2="21.751" width="0.3048" layer="1"/>
-<wire x1="17.907" y1="21.751" x2="20.701" y2="21.751" width="0.3048" layer="1"/>
-<wire x1="20.701" y1="21.751" x2="20.701" y2="21.627" width="0.3048" layer="1"/>
-<wire x1="20.701" y1="21.627" x2="23.749" y2="21.627" width="0.3048" layer="1"/>
-<wire x1="23.749" y1="21.627" x2="23.749" y2="20.223" width="0.3048" layer="1"/>
-<wire x1="26.182" y1="20.127" x2="26.182" y2="21.627" width="0.3048" layer="1"/>
-<wire x1="26.182" y1="21.627" x2="23.749" y2="21.627" width="0.3048" layer="1"/>
+<wire x1="21.59" y1="21.627" x2="21.59" y2="20.223" width="0.3048" layer="1"/>
+<wire x1="24.023" y1="20.127" x2="24.023" y2="21.627" width="0.3048" layer="1"/>
+<wire x1="24.023" y1="21.627" x2="21.59" y2="21.627" width="0.3048" layer="1"/>
 <wire x1="25.908" y1="22.987" x2="26.182" y2="22.987" width="0.3048" layer="1"/>
-<wire x1="26.182" y1="22.987" x2="26.182" y2="21.627" width="0.3048" layer="1"/>
-<wire x1="26.182" y1="18.227" x2="25.3365" y2="18.227" width="0.3048" layer="1"/>
-<wire x1="25.3365" y1="18.227" x2="25.019" y2="18.5445" width="0.3048" layer="1"/>
-<wire x1="25.019" y1="18.5445" x2="25.019" y2="19.7485" width="0.3048" layer="1"/>
-<wire x1="25.019" y1="19.7485" x2="25.3365" y2="20.066" width="0.3048" layer="1"/>
-<wire x1="25.3365" y1="20.066" x2="26.182" y2="20.066" width="0.3048" layer="1"/>
-<wire x1="26.182" y1="20.066" x2="26.182" y2="20.127" width="0.3048" layer="1"/>
+<wire x1="24.023" y1="18.227" x2="23.1775" y2="18.227" width="0.3048" layer="1"/>
+<wire x1="23.1775" y1="18.227" x2="22.86" y2="18.5445" width="0.3048" layer="1"/>
+<wire x1="22.86" y1="18.5445" x2="22.86" y2="19.7485" width="0.3048" layer="1"/>
+<wire x1="22.86" y1="19.7485" x2="23.1775" y2="20.066" width="0.3048" layer="1"/>
+<wire x1="23.1775" y1="20.066" x2="24.023" y2="20.066" width="0.3048" layer="1"/>
+<wire x1="24.023" y1="20.066" x2="24.023" y2="20.127" width="0.3048" layer="1"/>
+<contactref element="C11" pad="1"/>
+<wire x1="17.907" y1="21.751" x2="19.558" y2="21.751" width="0.3048" layer="1"/>
+<wire x1="19.558" y1="21.751" x2="21.59" y2="21.751" width="0.3048" layer="1"/>
+<wire x1="21.59" y1="21.751" x2="21.59" y2="21.627" width="0.3048" layer="1"/>
+<wire x1="19.558" y1="19.685" x2="19.558" y2="21.751" width="0.3048" layer="1"/>
+<wire x1="24.023" y1="21.627" x2="25.383" y2="22.987" width="0.3048" layer="1"/>
+<wire x1="25.383" y1="22.987" x2="25.908" y2="22.987" width="0.3048" layer="1"/>
 </signal>
 <signal name="N$3">
 <contactref element="R1" pad="2"/>
@@ -1386,10 +1390,10 @@ einem neuen Namen ab.</description>
 <signal name="TXD0">
 <contactref element="SV1" pad="5"/>
 <contactref element="IC1" pad="12"/>
-<wire x1="7.831" y1="10.166" x2="9.652" y2="10.166" width="0.3048" layer="1"/>
-<wire x1="9.652" y1="10.166" x2="9.652" y2="10.16" width="0.3048" layer="1"/>
-<via x="9.652" y="10.16" extent="1-16" drill="0.5"/>
-<wire x1="9.652" y1="10.16" x2="7.6835" y2="10.16" width="0.3048" layer="16"/>
+<wire x1="7.831" y1="10.166" x2="9.144" y2="10.166" width="0.3048" layer="1"/>
+<wire x1="9.144" y1="10.166" x2="9.144" y2="10.16" width="0.3048" layer="1"/>
+<via x="9.144" y="10.16" extent="1-16" drill="0.5"/>
+<wire x1="9.144" y1="10.16" x2="7.6835" y2="10.16" width="0.3048" layer="16"/>
 <wire x1="7.6835" y1="10.16" x2="7.366" y2="10.4775" width="0.3048" layer="16"/>
 <wire x1="7.366" y1="10.4775" x2="7.366" y2="12.5095" width="0.3048" layer="16"/>
 <wire x1="7.366" y1="12.5095" x2="7.0485" y2="12.827" width="0.3048" layer="16"/>
@@ -1433,9 +1437,6 @@ einem neuen Namen ab.</description>
 <contactref element="C7" pad="1"/>
 <contactref element="R9" pad="2"/>
 <contactref element="R8" pad="2"/>
-<wire x1="28.682" y1="20.127" x2="30.734" y2="20.127" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="20.127" x2="30.734" y2="20.096" width="0.3048" layer="1"/>
-<wire x1="30.734" y1="20.096" x2="33.147" y2="20.096" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="20.096" x2="33.147" y2="19.746" width="0.3048" layer="1"/>
 <wire x1="33.147" y1="19.746" x2="36.449" y2="19.746" width="0.3048" layer="1"/>
 <wire x1="36.449" y1="19.746" x2="38.481" y2="19.746" width="0.3048" layer="1"/>
@@ -1491,6 +1492,13 @@ einem neuen Namen ab.</description>
 <wire x1="4.191" y1="6.858" x2="2.159" y2="6.858" width="0.3048" layer="16"/>
 <wire x1="4.5085" y1="0.785" x2="26.774" y2="0.785" width="0.3048" layer="16"/>
 <wire x1="26.774" y1="0.785" x2="26.797" y2="0.762" width="0.3048" layer="16"/>
+<contactref element="C2" pad="1"/>
+<wire x1="26.523" y1="20.127" x2="28.853" y2="20.127" width="0.3048" layer="1"/>
+<wire x1="28.853" y1="20.127" x2="29.464" y2="20.738" width="0.3048" layer="1"/>
+<wire x1="33.147" y1="20.096" x2="30.106" y2="20.096" width="0.3048" layer="1"/>
+<wire x1="30.106" y1="20.096" x2="29.464" y2="20.738" width="0.3048" layer="1"/>
+<wire x1="36.449" y1="19.746" x2="36.449" y2="21.493" width="0.3048" layer="1"/>
+<wire x1="36.449" y1="21.493" x2="37.308" y2="22.352" width="0.3048" layer="1"/>
 </signal>
 <signal name="BOOT1">
 <contactref element="IC1" pad="7"/>
@@ -1594,28 +1602,11 @@ einem neuen Namen ab.</description>
 <wire x1="24.916" y1="5.818" x2="24.003" y2="6.731" width="0.3048" layer="16"/>
 <wire x1="24.003" y1="6.731" x2="24.003" y2="8.636" width="0.3048" layer="16"/>
 </signal>
-<signal name="N$1">
-<contactref element="IC1" pad="16"/>
-<contactref element="R7" pad="2"/>
-<wire x1="10.414" y1="15.1765" x2="10.9855" y2="15.748" width="0.3048" layer="1"/>
-<wire x1="10.9855" y1="15.748" x2="12.2555" y2="15.748" width="0.3048" layer="1"/>
-<wire x1="12.2555" y1="15.748" x2="12.573" y2="16.0655" width="0.3048" layer="1"/>
-<wire x1="12.573" y1="16.0655" x2="12.573" y2="17.145" width="0.3048" layer="1"/>
-<wire x1="10.668" y1="6.3885" x2="10.668" y2="10.922" width="0.3048" layer="1"/>
-<wire x1="10.668" y1="10.922" x2="10.414" y2="11.176" width="0.3048" layer="1"/>
-<via x="10.414" y="11.176" extent="1-16" drill="0.5"/>
-<wire x1="10.414" y1="11.176" x2="10.414" y2="14.859" width="0.3048" layer="16"/>
-<via x="10.414" y="14.859" extent="1-16" drill="0.5"/>
-<wire x1="10.414" y1="14.859" x2="10.414" y2="15.1765" width="0.3048" layer="1"/>
-<wire x1="7.831" y1="4.166" x2="8.4455" y2="4.166" width="0.3048" layer="1"/>
-<wire x1="8.4455" y1="4.166" x2="10.668" y2="6.3885" width="0.3048" layer="1"/>
-</signal>
 <signal name="PWROUT_DIV">
 <contactref element="IC1" pad="18"/>
 <contactref element="R10" pad="1"/>
 <contactref element="R11" pad="2"/>
 <wire x1="27.432" y1="22.987" x2="28.575" y2="22.987" width="0.3048" layer="1"/>
-<wire x1="28.575" y1="22.987" x2="29.718" y2="22.987" width="0.3048" layer="1"/>
 <wire x1="7.831" y1="1.166" x2="7.831" y2="1.143" width="0.3048" layer="1"/>
 <wire x1="7.831" y1="1.143" x2="10.3505" y2="1.143" width="0.3048" layer="1"/>
 <wire x1="10.3505" y1="1.143" x2="10.668" y2="1.4605" width="0.3048" layer="1"/>
@@ -1649,6 +1640,22 @@ einem neuen Namen ab.</description>
 <wire x1="16.129" y1="9.652" x2="15.748" y2="10.033" width="0.3048" layer="1"/>
 <via x="15.748" y="10.033" extent="1-16" drill="0.5"/>
 <wire x1="15.748" y1="10.033" x2="14.859" y2="10.033" width="0.3048" layer="16"/>
+<contactref element="C10" pad="1"/>
+<wire x1="28.575" y1="22.987" x2="29.083" y2="22.479" width="0.3048" layer="1"/>
+<wire x1="29.083" y1="22.479" x2="32.639" y2="22.479" width="0.3048" layer="1"/>
+<wire x1="32.639" y1="24.003" x2="32.639" y2="22.479" width="0.3048" layer="1"/>
+</signal>
+<signal name="N$1">
+<contactref element="R7" pad="2"/>
+<contactref element="IC1" pad="15"/>
+<wire x1="7.831" y1="5.666" x2="10.365" y2="5.666" width="0.3048" layer="1"/>
+<wire x1="10.365" y1="5.666" x2="10.541" y2="5.842" width="0.3048" layer="1"/>
+<wire x1="10.541" y1="5.842" x2="10.541" y2="11.049" width="0.3048" layer="1"/>
+<via x="10.541" y="11.049" extent="1-16" drill="0.5"/>
+<wire x1="10.541" y1="11.049" x2="10.541" y2="15.24" width="0.3048" layer="16"/>
+<via x="10.541" y="15.24" extent="1-16" drill="0.5"/>
+<wire x1="10.541" y1="15.24" x2="12.446" y2="17.145" width="0.3048" layer="1"/>
+<wire x1="12.446" y1="17.145" x2="12.573" y2="17.145" width="0.3048" layer="1"/>
 </signal>
 </signals>
 </board>
