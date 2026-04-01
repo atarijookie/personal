@@ -106,7 +106,9 @@ def parse_json_line(line: str) -> Optional[dict]:
         return None
 
 
-def coerce_temp_sensor_payload(obj: dict) -> Optional[Tuple[int, Optional[float], Optional[int]]]:
+def coerce_temp_sensor_payload(
+    obj: dict,
+) -> Optional[Tuple[int, Optional[float], Optional[int], Optional[float]]]:
     if obj.get("type") != "temp_sensor":
         return None
 
@@ -121,6 +123,7 @@ def coerce_temp_sensor_payload(obj: dict) -> Optional[Tuple[int, Optional[float]
 
     temp = obj.get("temp")
     humidity = obj.get("humidity")
+    battery = obj.get("battery")
 
     try:
         temp_f = None if temp is None else float(temp)
@@ -131,8 +134,12 @@ def coerce_temp_sensor_payload(obj: dict) -> Optional[Tuple[int, Optional[float]
         hum_i = None if humidity is None else int(humidity)
     except (TypeError, ValueError):
         hum_i = None
+    try:
+        battery_f = None if battery is None else float(battery)
+    except (TypeError, ValueError):
+        battery_f = None
 
-    return sensor_id, temp_f, hum_i
+    return sensor_id, temp_f, hum_i, battery_f
 
 
 def _closest_value(
@@ -171,6 +178,20 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
             (sensor_id,),
         )
         rows: List[Tuple[int, Optional[float], Optional[int]]] = list(cur.fetchall())
+        cur.execute(
+            """
+            SELECT battery
+            FROM temps_raw
+            WHERE sensor_id = %s
+              AND datetime::date = CURRENT_DATE
+              AND battery IS NOT NULL
+            ORDER BY datetime DESC
+            LIMIT 1;
+            """,
+            (sensor_id,),
+        )
+        battery_row = cur.fetchone()
+        latest_battery: Optional[float] = battery_row[0] if battery_row else None
 
     temps_vals: List[Optional[float]] = []
     hum_vals: List[Optional[int]] = []
@@ -203,8 +224,8 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
     h_avg = (sum(hum_nonnull) / len(hum_nonnull)) if hum_nonnull else None
 
     sql = """
-    INSERT INTO temps_aggr (day, sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, temps, humidities)
-    VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    INSERT INTO temps_aggr (day, sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, battery, temps, humidities)
+    VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (day, sensor_id) DO UPDATE
       SET t_min = EXCLUDED.t_min,
           t_max = EXCLUDED.t_max,
@@ -212,10 +233,11 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
           h_min = EXCLUDED.h_min,
           h_max = EXCLUDED.h_max,
           h_avg = EXCLUDED.h_avg,
+          battery = EXCLUDED.battery,
           temps = EXCLUDED.temps,
           humidities = EXCLUDED.humidities;
     """
-    params = (sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, temps_str, hum_str)
+    params = (sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, latest_battery, temps_str, hum_str)
     logger.info("SQL: %s params=%s", " ".join(sql.split()), params)
 
     with conn.cursor() as cur:
@@ -225,10 +247,15 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
 
 
 def insert_temp_raw(
-    conn, logger: logging.Logger, sensor_id: int, temp: Optional[float], humidity: Optional[int]
+    conn,
+    logger: logging.Logger,
+    sensor_id: int,
+    temp: Optional[float],
+    humidity: Optional[int],
+    battery: Optional[float],
 ) -> None:
-    sql = "INSERT INTO temps_raw (sensor_id, temp, humidity) VALUES (%s, %s, %s);"
-    params = (sensor_id, temp, humidity)
+    sql = "INSERT INTO temps_raw (sensor_id, temp, humidity, battery) VALUES (%s, %s, %s, %s);"
+    params = (sensor_id, temp, humidity, battery)
     logger.info("SQL: %s params=%s", sql, params)
     with conn.cursor() as cur:
         cur.execute(sql, params)
@@ -263,8 +290,8 @@ def handle_connection(
                         # JSON received but not a temp_sensor payload; ignore
                         break
 
-                    sensor_id, temp, humidity = payload
-                    insert_temp_raw(conn_pg, logger, sensor_id, temp, humidity)
+                    sensor_id, temp, humidity, battery = payload
+                    insert_temp_raw(conn_pg, logger, sensor_id, temp, humidity, battery)
 
                     now_ts = int(time.time())
                     last_ts = last_agg_by_sensor.get(sensor_id, 0)
