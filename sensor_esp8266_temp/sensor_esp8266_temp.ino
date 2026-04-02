@@ -13,19 +13,24 @@ static const uint8_t espNowBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 
 static void onDataSent(uint8_t* mac_addr, uint8_t status);
 
-// GPIO assignments (per your request)
-static const uint8_t PIN_DONE = 3;        // GPIO3
-static const uint8_t PIN_PWROUT_DIV = 0;  // GPIO0 (ADC input)
+static const uint8_t PIN_TXD = 1;
+static const uint8_t PIN_RXD = 3;
 
-// I2C pin assignments for AHT20 (per your request)
-static const uint8_t I2C_SDA_PIN = 6; // GPIO6
-static const uint8_t I2C_SCL_PIN = 7; // GPIO7
+// GPIO assignments
+static const uint8_t PIN_DONE = 12;
+static const uint8_t PIN_PWROUT_DIV = 0;  // ADC0 / A0
+
+// I2C pin assignments for AHT20
+static const uint8_t I2C_SDA_PIN = 4;
+static const uint8_t I2C_SCL_PIN = 5;
 
 static const uint8_t PIN_LED = LED_BUILTIN;
 static Adafruit_AHTX0 s_aht;
 static bool s_ahtOk = false;
 static float s_lastTempC = 0.0f;
 static int s_lastHumidityPct = 0;
+
+uint32_t durationSetup, durationRun;
 
 void ledToggle(void)
 {
@@ -39,22 +44,34 @@ void ledToggle(void)
 }
 
 void setup() {
+  uint32_t start = millis();
+
+  Serial.begin(115200);
+  Serial.print("\n\npins: ");
+
+  // uint8_t pins[7] = {PIN_LED, PIN_DONE, PIN_PWROUT_DIV, I2C_SDA_PIN, I2C_SCL_PIN, PIN_TXD, PIN_RXD};
+  // for(int i=0; i<7; i++) {
+  //   Serial.print(pins[i]); Serial.print(" ");
+  // }
+  // Serial.println(" ");
+
+  Serial.println("Config pins");
   pinMode(PIN_DONE, OUTPUT);
   digitalWrite(PIN_DONE, LOW);
 
   pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, HIGH);
-
-  Serial.begin(115200);
+  digitalWrite(PIN_LED, LOW);    // LED on
 
   // Use the internal hardware noise for a better seed
   randomSeed(analogRead(0));
 
+  Serial.println("Config wifi");
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(10);
 
   // Initialize I2C + AHT20
+  Serial.println("Config i2c + aht20");
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   s_ahtOk = s_aht.begin();
   if (!s_ahtOk) {
@@ -63,6 +80,7 @@ void setup() {
     Serial.println("AHT20 init ok");
   }
 
+  Serial.println("Config ESP-NOW");
   if (esp_now_init() != 0) {
     Serial.println("ESP-NOW init failed");
     delay(100);
@@ -78,19 +96,31 @@ void setup() {
 
   // Register broadcast peer so esp_now_send() can be called with FF:FF:FF:FF:FF:FF
   esp_now_add_peer(const_cast<uint8_t*>(espNowBroadcastMac), ESP_NOW_ROLE_CONTROLLER, 0, NULL, 0);
+
+  Serial.println("Config DONE!");
+  uint32_t end = millis();
+  durationSetup = end - start;
 }
 
 void loop() {
-  // Indicate "busy/sending" on GPIO2
+  uint32_t start = millis();
+
+  Serial.println("main start");
+
+  // Indicate "busy/sending"
   digitalWrite(PIN_DONE, LOW);
 
   // Read AHT20 + power divider analog *before* constructing/sending the packet.
   if (s_ahtOk) {
+    Serial.println("aht20 read");
+
     sensors_event_t humidityEvent, tempEvent;
     s_aht.getEvent(&humidityEvent, &tempEvent);
 
     s_lastHumidityPct = (int)(humidityEvent.relative_humidity + 0.5f);
     s_lastTempC = tempEvent.temperature;
+  } else {
+    Serial.println("aht20 skip");
   }
 
   const uint16_t pwroOutDivAdc = (uint16_t)analogRead(PIN_PWROUT_DIV);
@@ -100,6 +130,8 @@ void loop() {
 
   const uint32_t packetRandomId =
       ((uint32_t)random(0xFFFF) << 16) | (uint32_t)random(0xFFFF);
+
+  Serial.println("create payload");
 
   // Construct JSON into a null-terminated char buffer, then send the bytes
   char payload[250];
@@ -125,7 +157,7 @@ void loop() {
 
   const size_t payloadLen = strlen(payload);
 
-  Serial.println("SEND");
+  Serial.println("esp-now send");
   ledToggle();
 
   // Send the same ESP-NOW broadcast on the requested WiFi channels.
@@ -146,9 +178,22 @@ void loop() {
     delay(10);
   }
 
+  digitalWrite(PIN_LED, HIGH);    // LED off
+
+  uint32_t end = millis();
+  durationRun = end - start;
+
+  Serial.print("setup + run: ");
+  Serial.print(durationSetup);
+  Serial.print(" + ");
+  Serial.print(durationRun);
+  Serial.println(" ms");
+
+  Serial.println("turning off or 5s wait + restart");
+
   // Indicate "done" after all packets were sent.
   digitalWrite(PIN_DONE, HIGH);   // this should turn off via TPL5110
-  digitalWrite(PIN_LED, LOW);
+  digitalWrite(PIN_LED, HIGH);
 
   delay(5000);  // this should never happen (or not wait whole 5s and restart as the power should be already off)
 }

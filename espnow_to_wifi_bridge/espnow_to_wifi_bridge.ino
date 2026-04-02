@@ -2,8 +2,8 @@
 #include <esp_now.h>    // esp_now.h for esp32
 #include <cstring>
 
-const char* ssid = "WIFI_SSID";
-const char* password = "WIFI_PASSWD";
+const char* ssid = "WIFI_SSID";          // WIFI_SSID
+const char* password = "WIFI_PASSWD";    // WIFI_PASSWD
 
 const char* host = "192.168.123.55";
 const uint16_t port = 22222;
@@ -23,6 +23,8 @@ static constexpr uint8_t QUEUE_DEPTH = 16;
 struct PacketQueueItem {
   int len = 0;
   uint8_t data[ESP_NOW_MAX_DATA_LEN];
+  int8_t rssi;
+  int health;
 };
 
 static PacketQueueItem s_queue[QUEUE_DEPTH];
@@ -30,7 +32,7 @@ static volatile uint8_t s_qHead = 0;
 static volatile uint8_t s_qTail = 0;
 static volatile uint8_t s_qCount = 0;
 
-static void onDataRecv(const esp_now_recv_info* /*info*/, const uint8_t* incomingData, int len) {
+static void onDataRecv(const esp_now_recv_info* info, const uint8_t* incomingData, int len) {
   if (len <= 0) {
     return;
   }
@@ -40,6 +42,13 @@ static void onDataRecv(const esp_now_recv_info* /*info*/, const uint8_t* incomin
 
   noInterrupts();
 
+  // Extract RSSI from the info pointer
+  int8_t rssi = info->rx_ctrl->rssi;
+
+  // Map the RSSI to a health percentage (optional)
+  int health = map(rssi, -100, -30, 0, 100);
+  health = constrain(health, 0, 100);
+
   // If the queue is full, overwrite the oldest queued packet.
   if (s_qCount == QUEUE_DEPTH) {
     s_qTail = (s_qTail + 1) % QUEUE_DEPTH;
@@ -47,6 +56,8 @@ static void onDataRecv(const esp_now_recv_info* /*info*/, const uint8_t* incomin
   }
 
   PacketQueueItem* item = &s_queue[s_qHead];
+  item->rssi = rssi;
+  item->health = health;
   item->len = static_cast<int>(len);
   memcpy(item->data, incomingData, static_cast<size_t>(len));
 
@@ -124,6 +135,17 @@ void loop() {
     return;
   }
 
+  // output data to serial
+  Serial.print("recvd via esp-now: ");
+  for(int i=0; i<item.len; i++) {
+    Serial.print((char) item.data[i]);
+  }
+  Serial.println(" ");
+  Serial.print("recvd rssi: ");
+  Serial.print(item.rssi);
+  Serial.print(", health: ");
+  Serial.println(item.health);
+
   // digitalWrite(LED_BUILTIN, HIGH);
 
   // For each ESP-NOW packet:
@@ -132,6 +154,8 @@ void loop() {
   // - close TCP (WiFi stays connected; ESP-NOW can receive next packet)
   WiFiClient client;
   if (client.connect(host, port)) {
+    Serial.println("connect to server: ok");
+
     size_t offset = 0;
     while (offset < item.len) {
       const size_t remaining = item.len - offset;
@@ -140,6 +164,8 @@ void loop() {
       offset += n;
     }
     client.flush();
+  } else {
+    Serial.println("connect to server: fail");
   }
   client.stop();
 
