@@ -6,43 +6,61 @@
 #include <string.h>
 
 // ESP-NOW sender configuration
-static const int thisDeviceId = 0;
+static const int thisDeviceId = 1;
 static const uint8_t espNowBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status);
 
-// GPIO assignments (per your request)
+static const uint8_t PIN_TXD = 20;
+static const uint8_t PIN_RXD = 21;
+
+// GPIO assignments
 static const uint8_t PIN_DONE = 3;        // GPIO3
 static const uint8_t PIN_PWROUT_DIV = 0;  // GPIO0 (ADC input)
 
-// I2C pin assignments for AHT20 (per your request)
-static const uint8_t I2C_SDA_PIN = 6; // GPIO6
-static const uint8_t I2C_SCL_PIN = 7; // GPIO7
+// I2C pin assignments for AHT20
+static const uint8_t I2C_SDA_PIN = 6;     // GPIO6
+static const uint8_t I2C_SCL_PIN = 7;     // GPIO7
 
-static const uint8_t PIN_LED = LED_BUILTIN;
 static Adafruit_AHTX0 s_aht;
 static bool s_ahtOk = false;
 static float s_lastTempC = 0.0f;
 static int s_lastHumidityPct = 0;
 
+uint32_t durationSetup, durationRun;
+
 void setup() {
+  uint32_t start = millis();
+  Serial.begin(115200);
+
+  Serial.println("Config pins");
+
   pinMode(PIN_DONE, OUTPUT);
   digitalWrite(PIN_DONE, LOW);
 
-  pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, HIGH);
-
-  Serial.begin(115200);
-
   // Use the internal hardware noise for a better seed
   randomSeed(analogRead(0));
+
+  Serial.println("Config wifi");
 
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(10);
 
   // Initialize I2C + AHT20
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  Serial.println("Config i2c + aht20");
+
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 100000); // Set to 100kHz
+
+  Wire.beginTransmission(0x38);
+  uint8_t error = Wire.endTransmission();
+  if(error == 0) {
+    Serial.println("i2c ok");
+  } else {
+    Serial.print("i2c fail, error: ");
+    Serial.println(error);
+  }
+
   s_ahtOk = s_aht.begin();
   if (!s_ahtOk) {
     Serial.println("AHT20 init failed");
@@ -77,28 +95,46 @@ void setup() {
     delay(100);
     ESP.restart();
   }
+
+  Serial.println("Config DONE!");
+  uint32_t end = millis();
+  durationSetup = end - start;
 }
 
 void loop() {
-  // Indicate "busy/sending" on GPIO2
+  uint32_t start = millis();
+  Serial.println("main start");
+
+  // Indicate "busy/sending"
   digitalWrite(PIN_DONE, LOW);
 
   // Read AHT20 + power divider analog *before* constructing/sending the packet.
   if (s_ahtOk) {
+    Serial.println("aht20 read");
+
     sensors_event_t humidityEvent, tempEvent;
     s_aht.getEvent(&humidityEvent, &tempEvent);
 
     s_lastHumidityPct = (int)(humidityEvent.relative_humidity + 0.5f);
     s_lastTempC = tempEvent.temperature;
+  } else {
+    Serial.println("aht20 skip");
   }
 
+  analogReadResolution(12);   // esp32-c3 has max adc resulotion of 12 bits (0-4095)
   const uint16_t pwroOutDivAdc = (uint16_t)analogRead(PIN_PWROUT_DIV);
-  // ADC counts are linear. The 10k+10k divider makes Vout = Vsupply/2, so:
-  // Divider voltage: 0..2.5V  =>  Supply voltage: 0..5.0V
-  const float batteryVolts = ((float)pwroOutDivAdc / 1023.0f) * 5.0f;
+  float batteryVolts = ((float)pwroOutDivAdc / 4095.0f);    // from <0, 4095> to <0, 1.0>
+  batteryVolts = batteryVolts * 3.3f * 2.0f;  // from <0, 1.0> to <0, 3.3>, but the input voltage divider inputs just half, so multiply by 2
+
+  Serial.print("adc raw: ");
+  Serial.print((int) pwroOutDivAdc);
+  Serial.print(", volts: ");
+  Serial.println(batteryVolts);
 
   const uint32_t packetRandomId =
       ((uint32_t)random(0xFFFF) << 16) | (uint32_t)random(0xFFFF);
+
+  Serial.println("create payload");
 
   // Construct JSON into a null-terminated char buffer, then send the bytes
   char payload[250];
@@ -124,8 +160,8 @@ void loop() {
 
   const size_t payloadLen = strlen(payload);
 
-  Serial.println("SEND");
-  
+  Serial.println("esp-now send");
+
   // Send the same ESP-NOW broadcast on the requested WiFi channels.
   const uint8_t channels[3] = {1, 6, 11};
   for (int i = 0; i < 3; i++) {
@@ -150,9 +186,19 @@ void loop() {
     delay(10);
   }
 
+  uint32_t end = millis();
+  durationRun = end - start;
+
+  Serial.print("setup + run: ");
+  Serial.print(durationSetup);
+  Serial.print(" + ");
+  Serial.print(durationRun);
+  Serial.println(" ms");
+
+  Serial.println("turning off or 5s wait + restart");
+
   // Indicate "done" after all packets were sent.
   digitalWrite(PIN_DONE, HIGH);   // this should turn off via TPL5110
-  digitalWrite(PIN_LED, LOW);
 
   delay(5000);  // this should never happen (or not wait whole 5s and restart as the power should be already off)
 }

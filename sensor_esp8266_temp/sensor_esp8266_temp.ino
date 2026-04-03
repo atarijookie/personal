@@ -104,7 +104,6 @@ void setup() {
 
 void loop() {
   uint32_t start = millis();
-
   Serial.println("main start");
 
   // Indicate "busy/sending"

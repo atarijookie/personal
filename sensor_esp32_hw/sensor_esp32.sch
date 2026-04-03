@@ -2778,7 +2778,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <part name="U$4" library="microbuilder" deviceset="GND" device=""/>
 <part name="Q1" library="microbuilder" deviceset="MOSFET-P" device="WIDE" value="DMG3415"/>
 <part name="D1" library="microbuilder" deviceset="LED" device="0805_NOOUTLINE" value="GREEN"/>
-<part name="R1" library="microbuilder" deviceset="RESISTOR" device="0805_NOOUTLINE" value="1K"/>
 <part name="U$6" library="microbuilder" deviceset="GND" device=""/>
 <part name="R2" library="microbuilder" deviceset="RESISTOR" device="_0603" value="1M"/>
 <part name="U$9" library="microbuilder" deviceset="GND" device=""/>
@@ -2788,7 +2787,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <part name="R3" library="microbuilder" deviceset="RESISTOR" device="_0603" value="68k"/>
 <part name="JP1" library="jumper" deviceset="JP1E" device=""/>
 <part name="C2" library="293D107X9010C2TE3" deviceset="293D107X9010C2TE3" device="" value="100 uF"/>
-<part name="C3" library="293D226X9010A2TE3" deviceset="293D226X9010A2TE3" device="" value="10 uF"/>
 <part name="IC1" library="ESP32-C3-WROOM-02-N4" deviceset="ESP32-C3-WROOM-02-N4" device=""/>
 <part name="U$1" library="microbuilder" deviceset="GND" device=""/>
 <part name="U$2" library="microbuilder" deviceset="GND" device=""/>
@@ -2807,7 +2805,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 </part>
 <part name="U$5" library="microbuilder" deviceset="GND" device=""/>
 <part name="U$8" library="microbuilder" deviceset="GND" device=""/>
-<part name="C5" library="microbuilder" deviceset="CAP_CERAMIC" device="0805-NOOUTLINE" value="100 nF"/>
 <part name="SV2" library="con-lstb" deviceset="MA03-1" device=""/>
 <part name="U$12" library="microbuilder" deviceset="GND" device=""/>
 <part name="R6" library="microbuilder" deviceset="RESISTOR" device="_0603" value="4k7"/>
@@ -2833,6 +2830,16 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <part name="C10" library="microbuilder" deviceset="CAP_CERAMIC" device="_0603" value="100 nF"/>
 <part name="U$19" library="microbuilder" deviceset="GND" device=""/>
 <part name="C11" library="microbuilder" deviceset="CAP_CERAMIC" device="_0603" value="100 nF"/>
+<part name="C5" library="microbuilder" deviceset="CAP_CERAMIC" device="_0603" value="100 nF"/>
+<part name="R1" library="microbuilder" deviceset="RESISTOR" device="_0603" value="1k"/>
+<part name="C3" library="293D226X9010A2TE3" deviceset="293D226X9010A2TE3" device="" value="22 uF">
+<attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade"/>
+<attribute name="HEIGHT" value="1.8mm"/>
+<attribute name="MANUFACTURER_NAME" value="Vishay"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="293D226X9010A2TE3"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value=""/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value=""/>
+</part>
 </parts>
 <sheets>
 <sheet>
@@ -2845,7 +2852,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <instance part="U$4" gate="G$1" x="185.42" y="86.36"/>
 <instance part="Q1" gate="G$1" x="160.02" y="109.22" rot="R90"/>
 <instance part="D1" gate="G$1" x="175.26" y="88.9" rot="R270"/>
-<instance part="R1" gate="G$1" x="175.26" y="76.2" rot="R90"/>
 <instance part="U$6" gate="G$1" x="175.26" y="63.5"/>
 <instance part="R2" gate="G$1" x="160.02" y="76.2" rot="R90"/>
 <instance part="U$9" gate="G$1" x="160.02" y="63.5"/>
@@ -2855,7 +2861,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <instance part="R3" gate="G$1" x="114.3" y="76.2" rot="R90"/>
 <instance part="JP1" gate="A" x="83.82" y="96.52" rot="MR270"/>
 <instance part="C2" gate="G$1" x="228.6" y="104.14" rot="R270"/>
-<instance part="C3" gate="G$1" x="185.42" y="106.68" rot="R270"/>
 <instance part="IC1" gate="G$1" x="266.7" y="106.68"/>
 <instance part="U$1" gate="G$1" x="302.26" y="71.12"/>
 <instance part="U$2" gate="G$1" x="264.16" y="68.58"/>
@@ -2867,7 +2872,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <instance part="C4" gate="G$1" x="236.22" y="104.14" rot="R270"/>
 <instance part="U$5" gate="G$1" x="193.04" y="86.36"/>
 <instance part="U$8" gate="G$1" x="236.22" y="83.82"/>
-<instance part="C5" gate="G$1" x="243.84" y="96.52"/>
 <instance part="SV2" gate="G$1" x="373.38" y="104.14" rot="R180"/>
 <instance part="U$12" gate="G$1" x="363.22" y="86.36"/>
 <instance part="R6" gate="G$1" x="353.06" y="111.76" rot="R90"/>
@@ -2896,6 +2900,9 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <instance part="C10" gate="G$1" x="193.04" y="124.46"/>
 <instance part="U$19" gate="G$1" x="193.04" y="116.84"/>
 <instance part="C11" gate="G$1" x="180.34" y="99.06"/>
+<instance part="C5" gate="G$1" x="243.84" y="96.52"/>
+<instance part="R1" gate="G$1" x="175.26" y="76.2" rot="R270"/>
+<instance part="C3" gate="G$1" x="185.42" y="106.68" rot="R270"/>
 </instances>
 <busses>
 </busses>
@@ -2950,9 +2957,9 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 </net>
 <net name="GND" class="0">
 <segment>
-<pinref part="R1" gate="G$1" pin="1"/>
 <wire x1="175.26" y1="71.12" x2="175.26" y2="66.04" width="0.1524" layer="91"/>
 <pinref part="U$6" gate="G$1" pin="GND"/>
+<pinref part="R1" gate="G$1" pin="2"/>
 </segment>
 <segment>
 <pinref part="R2" gate="G$1" pin="1"/>
@@ -2979,13 +2986,13 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 </segment>
 <segment>
 <pinref part="U$4" gate="G$1" pin="GND"/>
-<pinref part="C3" gate="G$1" pin="-"/>
 <wire x1="185.42" y1="88.9" x2="185.42" y2="91.44" width="0.1524" layer="91"/>
 <pinref part="C11" gate="G$1" pin="2"/>
 <wire x1="185.42" y1="91.44" x2="185.42" y2="93.98" width="0.1524" layer="91"/>
 <wire x1="180.34" y1="96.52" x2="180.34" y2="91.44" width="0.1524" layer="91"/>
 <wire x1="180.34" y1="91.44" x2="185.42" y2="91.44" width="0.1524" layer="91"/>
 <junction x="185.42" y="91.44"/>
+<pinref part="C3" gate="G$1" pin="-"/>
 </segment>
 <segment>
 <pinref part="IC1" gate="G$1" pin="GND_1"/>
@@ -3047,7 +3054,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="U$8" gate="G$1" pin="GND"/>
 <pinref part="C4" gate="G$1" pin="-"/>
 <wire x1="236.22" y1="91.44" x2="236.22" y2="88.9" width="0.1524" layer="91"/>
-<pinref part="C5" gate="G$1" pin="2"/>
 <wire x1="236.22" y1="88.9" x2="236.22" y2="86.36" width="0.1524" layer="91"/>
 <wire x1="243.84" y1="93.98" x2="243.84" y2="88.9" width="0.1524" layer="91"/>
 <wire x1="243.84" y1="88.9" x2="236.22" y2="88.9" width="0.1524" layer="91"/>
@@ -3059,6 +3065,7 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="C2" gate="G$1" pin="-"/>
 <wire x1="228.6" y1="91.44" x2="228.6" y2="88.9" width="0.1524" layer="91"/>
 <wire x1="228.6" y1="88.9" x2="236.22" y2="88.9" width="0.1524" layer="91"/>
+<pinref part="C5" gate="G$1" pin="2"/>
 </segment>
 <segment>
 <pinref part="SV2" gate="G$1" pin="3"/>
@@ -3166,13 +3173,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 </net>
 <net name="EN" class="0">
 <segment>
-<pinref part="U2" gate="G$1" pin="DRVN"/>
-<wire x1="144.78" y1="91.44" x2="157.48" y2="91.44" width="0.1524" layer="91"/>
-<label x="149.86" y="91.44" size="1.778" layer="95"/>
-<pinref part="Q1" gate="G$1" pin="G"/>
-<wire x1="157.48" y1="104.14" x2="157.48" y2="91.44" width="0.1524" layer="91"/>
-</segment>
-<segment>
 <pinref part="SV1" gate="G$1" pin="2"/>
 <label x="266.954" y="145.034" size="0.8128" layer="95"/>
 <wire x1="276.86" y1="144.78" x2="261.62" y2="144.78" width="0.1524" layer="91"/>
@@ -3201,7 +3201,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="D1" gate="G$1" pin="A"/>
 <wire x1="175.26" y1="109.22" x2="175.26" y2="93.98" width="0.1524" layer="91"/>
 <wire x1="175.26" y1="109.22" x2="180.34" y2="109.22" width="0.1524" layer="91"/>
-<pinref part="C3" gate="G$1" pin="+"/>
 <wire x1="180.34" y1="109.22" x2="185.42" y2="109.22" width="0.1524" layer="91"/>
 <wire x1="185.42" y1="109.22" x2="185.42" y2="106.68" width="0.1524" layer="91"/>
 <pinref part="PS1" gate="G$1" pin="VIN"/>
@@ -3219,13 +3218,14 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="C11" gate="G$1" pin="1"/>
 <wire x1="180.34" y1="104.14" x2="180.34" y2="109.22" width="0.1524" layer="91"/>
 <junction x="180.34" y="109.22"/>
+<pinref part="C3" gate="G$1" pin="+"/>
 </segment>
 </net>
 <net name="N$3" class="0">
 <segment>
-<pinref part="R1" gate="G$1" pin="2"/>
 <pinref part="D1" gate="G$1" pin="C"/>
 <wire x1="175.26" y1="81.28" x2="175.26" y2="86.36" width="0.1524" layer="91"/>
+<pinref part="R1" gate="G$1" pin="1"/>
 </segment>
 </net>
 <net name="BOOT" class="0">
@@ -3295,7 +3295,6 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <label x="246.38" y="107.188" size="0.8128" layer="95"/>
 <pinref part="IC1" gate="G$1" pin="3V3"/>
 <label x="256.54" y="106.934" size="0.8128" layer="95"/>
-<pinref part="C5" gate="G$1" pin="1"/>
 <wire x1="243.84" y1="106.68" x2="249.936" y2="106.68" width="0.1524" layer="91"/>
 <wire x1="249.936" y1="106.68" x2="266.7" y2="106.68" width="0.1524" layer="91"/>
 <wire x1="243.84" y1="101.6" x2="243.84" y2="106.68" width="0.1524" layer="91"/>
@@ -3306,6 +3305,7 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="C2" gate="G$1" pin="+"/>
 <wire x1="228.6" y1="104.14" x2="228.6" y2="106.68" width="0.1524" layer="91"/>
 <junction x="228.6" y="106.68"/>
+<pinref part="C5" gate="G$1" pin="1"/>
 </segment>
 <segment>
 <pinref part="R5" gate="G$1" pin="2"/>
@@ -3475,6 +3475,15 @@ Source: &lt;a href="https://www.espressif.com/sites/default/files/documentation/
 <pinref part="R7" gate="G$1" pin="2"/>
 <pinref part="IC1" gate="G$1" pin="IO3"/>
 <wire x1="304.8" y1="106.68" x2="299.72" y2="106.68" width="0.1524" layer="91"/>
+</segment>
+</net>
+<net name="DRVN" class="0">
+<segment>
+<pinref part="U2" gate="G$1" pin="DRVN"/>
+<wire x1="144.78" y1="91.44" x2="157.48" y2="91.44" width="0.1524" layer="91"/>
+<label x="149.86" y="91.44" size="1.778" layer="95"/>
+<pinref part="Q1" gate="G$1" pin="G"/>
+<wire x1="157.48" y1="104.14" x2="157.48" y2="91.44" width="0.1524" layer="91"/>
 </segment>
 </net>
 </nets>
