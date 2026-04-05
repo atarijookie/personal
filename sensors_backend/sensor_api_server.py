@@ -4,7 +4,7 @@ import os
 import sys
 from datetime import date, datetime
 from logging.handlers import RotatingFileHandler
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from flask import Flask, jsonify, request, send_from_directory
 from waitress import serve
@@ -125,10 +125,15 @@ def create_app() -> Flask:
         Returns:
           {
             "day": "YYYY-MM-DD",
-            "interval_minutes": 15,
-            "points_per_day": 96,
             "series": [
-              { "sensor_id": 123, "name": "...", "temps": [..96..], "humidities": [..96..] },
+              {
+                "sensor_id": 123,
+                "name": "...",
+                "points": [
+                  { "ts": "<ISO-8601 timestamptz>", "temp": 21.5, "humidity": 48 },
+                  ...
+                ]
+              },
               ...
             ]
           }
@@ -145,76 +150,40 @@ def create_app() -> Flask:
         except ValueError:
             return jsonify({"error": "day must be in format YYYY-MM-DD"}), 400
 
-        def parse_series(s: Optional[str], kind: str) -> List[Optional[float]]:
-            if not s:
-                return [None] * 96
-            parts = [p.strip() for p in s.split(",")]
-            out: List[Optional[float]] = []
-            for p in parts:
-                if p.lower() == "null" or p == "":
-                    out.append(None)
-                else:
-                    try:
-                        out.append(float(p))
-                    except ValueError:
-                        logger.warning("bad %s value in temps_aggr: %s", kind, p)
-                        out.append(None)
-            if len(out) < 96:
-                out.extend([None] * (96 - len(out)))
-            return out[:96]
-
         conn = connect_pg()
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    WITH sensor_ids AS (
-                      SELECT DISTINCT tr.sensor_id AS sensor_id
-                      FROM temps_raw tr
-                      WHERE tr.datetime::date = %s::date
-                    )
-                    SELECT si.sensor_id, s.name, ta.t_min, ta.t_max, ta.h_min, ta.h_max, ta.temps, ta.humidities
-                    FROM sensor_ids si
-                    LEFT JOIN sensors s ON s.id = si.sensor_id
-                    LEFT JOIN temps_aggr ta
-                      ON ta.sensor_id = si.sensor_id AND ta.day = %s::date
-                    ORDER BY si.sensor_id ASC;
+                    SELECT tr.sensor_id, s.name, tr.datetime, tr.temp, tr.humidity
+                    FROM temps_raw tr
+                    LEFT JOIN sensors s ON s.id = tr.sensor_id
+                    WHERE tr.datetime::date = %s::date
+                    ORDER BY tr.sensor_id ASC, tr.datetime ASC;
                     """,
-                    (day, day),
+                    (day,),
                 )
-                rows: List[
-                    Tuple[
-                        int,
-                        Optional[str],
-                        Optional[float],
-                        Optional[float],
-                        Optional[float],
-                        Optional[float],
-                        Optional[str],
-                        Optional[str],
-                    ]
-                ] = list(cur.fetchall())
+                rows = list(cur.fetchall())
 
-            series: List[Dict[str, Any]] = []
-            for sensor_id, name, t_min, t_max, h_min, h_max, temps_s, hum_s in rows:
-                series.append(
+            by_sensor: Dict[int, Dict[str, Any]] = {}
+            for sensor_id, name, dt, temp, humidity in rows:
+                sid = int(sensor_id)
+                if sid not in by_sensor:
+                    by_sensor[sid] = {"sensor_id": sid, "name": name, "points": []}
+                ts_str = dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+                by_sensor[sid]["points"].append(
                     {
-                        "sensor_id": int(sensor_id),
-                        "name": name,
-                        "t_min": t_min,
-                        "t_max": t_max,
-                        "h_min": h_min,
-                        "h_max": h_max,
-                        "temps": parse_series(temps_s, "temp"),
-                        "humidities": parse_series(hum_s, "humidity"),
+                        "ts": ts_str,
+                        "temp": float(temp) if temp is not None else None,
+                        "humidity": int(humidity) if humidity is not None else None,
                     }
                 )
+
+            series = [by_sensor[k] for k in sorted(by_sensor.keys())]
 
             return jsonify(
                 {
                     "day": day.isoformat(),
-                    "interval_minutes": 15,
-                    "points_per_day": 96,
                     "series": series,
                 }
             )
@@ -235,7 +204,7 @@ def create_app() -> Flask:
             "month": 3,
             "days_in_month": 31,
             "series": [
-              { "sensor_id": 123, "name": "...", "temps": [..days..] },
+              { "sensor_id": 123, "name": "...", "temps": [..days..], "humidities": [..days..] },
               ...
             ]
           }
@@ -271,7 +240,7 @@ def create_app() -> Flask:
                       FROM temps_raw tr
                       WHERE tr.datetime >= %s::date AND tr.datetime < %s::date
                     )
-                    SELECT si.sensor_id, s.name, ta.day, ta.temps
+                    SELECT si.sensor_id, s.name, ta.day, ta.temps, ta.humidities
                     FROM sensor_ids si
                     LEFT JOIN sensors s ON s.id = si.sensor_id
                     LEFT JOIN temps_aggr ta
@@ -285,19 +254,21 @@ def create_app() -> Flask:
 
             # Build per-sensor arrays of length dim
             series_map: Dict[int, Dict[str, Any]] = {}
-            for sensor_id, name, day_val, temps_s in rows:
+            for sensor_id, name, day_val, temps_s, hum_s in rows:
                 sensor_id = int(sensor_id)
                 if sensor_id not in series_map:
                     series_map[sensor_id] = {
                         "sensor_id": sensor_id,
                         "name": name,
                         "temps": [None] * dim,
+                        "humidities": [None] * dim,
                     }
                 if day_val is None:
                     continue
                 day_idx = (day_val - first).days
                 if 0 <= day_idx < dim:
                     series_map[sensor_id]["temps"][day_idx] = _avg_from_temps_string(temps_s, logger)
+                    series_map[sensor_id]["humidities"][day_idx] = _avg_from_temps_string(hum_s, logger)
 
             return jsonify(
                 {
@@ -305,6 +276,97 @@ def create_app() -> Flask:
                     "month": month,
                     "days_in_month": dim,
                     "series": list(series_map.values()),
+                }
+            )
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @app.post("/api/batteries")
+    def batteries():
+        """
+        Body JSON (optional): { "year": 2026, "month": 4 }
+        Defaults to current month/year when missing.
+        Sensor list is DISTINCT sensor_id from temps_aggr (not limited to the month).
+        Returns battery samples in the requested month only, oldest day first per sensor:
+          {
+            "year": 2026,
+            "month": 4,
+            "days_in_month": 30,
+            "series": [
+              {
+                "sensor_id": 123,
+                "name": "...",
+                "points": [ { "day": "YYYY-MM-DD", "battery": 3.7 }, ... ]
+              },
+              ...
+            ]
+          }
+        """
+        logger.info("endpoint hit: /api/batteries")
+        data = request.get_json(silent=True) or {}
+
+        now = datetime.now()
+        year = data.get("year", now.year)
+        month = data.get("month", now.month)
+        try:
+            year = int(year)
+            month = int(month)
+        except Exception:
+            return jsonify({"error": "year and month must be integers"}), 400
+        if month < 1 or month > 12:
+            return jsonify({"error": "month must be 1..12"}), 400
+
+        dim = _days_in_month(year, month)
+        first = date(year, month, 1)
+        if month == 12:
+            nxt = date(year + 1, 1, 1)
+        else:
+            nxt = date(year, month + 1, 1)
+
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    WITH sensor_ids AS (
+                      SELECT DISTINCT ta.sensor_id AS sensor_id
+                      FROM temps_aggr ta
+                    )
+                    SELECT si.sensor_id, s.name, ta.day, ta.battery
+                    FROM sensor_ids si
+                    LEFT JOIN sensors s ON s.id = si.sensor_id
+                    LEFT JOIN temps_aggr ta
+                      ON ta.sensor_id = si.sensor_id
+                     AND ta.day >= %s::date AND ta.day < %s::date
+                     AND ta.battery IS NOT NULL
+                    ORDER BY si.sensor_id ASC, ta.day ASC NULLS LAST;
+                    """,
+                    (first, nxt),
+                )
+                rows = list(cur.fetchall())
+
+            series_map: Dict[int, Dict[str, Any]] = {}
+            for sensor_id, name, day_val, bat in rows:
+                sid = int(sensor_id)
+                if sid not in series_map:
+                    series_map[sid] = {"sensor_id": sid, "name": name, "points": []}
+                if day_val is None or bat is None:
+                    continue
+                series_map[sid]["points"].append(
+                    {"day": day_val.isoformat(), "battery": float(bat)}
+                )
+
+            series = [series_map[k] for k in sorted(series_map.keys())]
+
+            return jsonify(
+                {
+                    "year": year,
+                    "month": month,
+                    "days_in_month": dim,
+                    "series": series,
                 }
             )
         finally:

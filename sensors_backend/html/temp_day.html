@@ -17,10 +17,11 @@
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
-      #hover { margin-top: 8px; max-width: 980px; }
-      #hover .title { font-weight: 600; margin-bottom: 6px; }
-      #hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
-      #hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+      .chart-hover { margin-top: 8px; max-width: 980px; }
+      .chart-hover .title { font-weight: 600; margin-bottom: 6px; }
+      .chart-hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
+      .chart-hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+      h2.chart-section { margin-top: 28px; }
     </style>
   </head>
   <body>
@@ -40,14 +41,19 @@
       <div id="devices"></div>
     </div>
 
-    <h2>Temperatures</h2>
-    <canvas id="chart" width="980" height="360"></canvas>
-    <div id="hover" class="muted">Move mouse over the graph…</div>
+    <h2 class="chart-section">Temperatures</h2>
+    <canvas id="chartTemp" width="980" height="360"></canvas>
+    <div id="hoverTemp" class="muted chart-hover">Move mouse over the graph…</div>
+
+    <h2 class="chart-section">Humidity</h2>
+    <canvas id="chartHumidity" width="980" height="360"></canvas>
+    <div id="hoverHumidity" class="muted chart-hover">Move mouse over the graph…</div>
 
     <script>
       let devicesById = new Map(); // id -> {id,name}
       let tempDayData = null;      // response from /api/temp_day
-      let hoverIdx = null;         // 0..95 while hovering
+      let hoverTempMs = null;
+      let hoverHumMs = null;
 
       function todayIso() {
         const d = new Date();
@@ -93,11 +99,45 @@
         return colors[i % colors.length];
       }
 
-      function slotToTimeLabel(i) {
-        const minutes = i * 15;
-        const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
-        const mm = String(minutes % 60).padStart(2, "0");
-        return `${hh}:${mm}`;
+      function dayBoundsMs(isoDay) {
+        const [y, m, d] = isoDay.split("-").map(n => parseInt(n, 10));
+        const start = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+        const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0).getTime();
+        return { start, end, span: end - start };
+      }
+
+      function timeMsFromMouseFrac(frac) {
+        const iso = document.getElementById("day").value;
+        const { start, span } = dayBoundsMs(iso);
+        return start + frac * span;
+      }
+
+      function xForTimeMs(canvas, tMs) {
+        const { left, w } = chartGeometry(canvas);
+        const iso = document.getElementById("day").value;
+        const { start, span } = dayBoundsMs(iso);
+        return left + ((tMs - start) / span) * w;
+      }
+
+      function formatTimeLabel(tMs) {
+        return new Date(tMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      }
+
+      function nearestPoint(series, timeMs) {
+        const pts = series.points || [];
+        if (!pts.length) return null;
+        let best = null;
+        let bestD = Infinity;
+        for (const p of pts) {
+          const tm = Date.parse(p.ts);
+          if (Number.isNaN(tm)) continue;
+          const d = Math.abs(tm - timeMs);
+          if (d < bestD) {
+            bestD = d;
+            best = p;
+          }
+        }
+        return best;
       }
 
       function chartGeometry(canvas) {
@@ -128,10 +168,10 @@
         ctx.closePath();
       }
 
-      function drawTooltip(ctx, canvas, idx, series, xFor) {
-        if (idx === null || idx === undefined) return;
+      function drawTooltip(ctx, canvas, tMs, series, metric) {
+        if (tMs === null || tMs === undefined) return;
         const geom = chartGeometry(canvas);
-        const x = xFor(idx);
+        const x = xForTimeMs(canvas, tMs);
 
         ctx.save();
         ctx.strokeStyle = "rgba(0,0,0,0.25)";
@@ -141,13 +181,23 @@
         ctx.lineTo(x, geom.top + geom.h);
         ctx.stroke();
 
-        const timeLabel = slotToTimeLabel(idx);
+        const timeLabel = formatTimeLabel(tMs);
         const lines = [];
         for (let i = 0; i < series.length; i++) {
           const s = series[i];
-          const v = s.temps[idx];
-          if (v === null || v === undefined) continue;
-          lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${v.toFixed(2)} °C` });
+          const p = nearestPoint(s, tMs);
+          if (!p) continue;
+          if (metric === "temp") {
+            if (p.temp === null || p.temp === undefined) continue;
+            const n = Number(p.temp);
+            if (Number.isNaN(n)) continue;
+            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${n.toFixed(2)} °C` });
+          } else {
+            if (p.humidity === null || p.humidity === undefined) continue;
+            const n = Number(p.humidity);
+            if (Number.isNaN(n)) continue;
+            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${Math.round(n)}% RH` });
+          }
         }
 
         const header = `Time ${timeLabel}`;
@@ -190,8 +240,17 @@
         ctx.restore();
       }
 
-      function drawChart() {
-        const canvas = document.getElementById("chart");
+      function valueFromPoint(p, metric) {
+        if (metric === "temp") {
+          if (p.temp === null || p.temp === undefined) return NaN;
+          return Number(p.temp);
+        }
+        if (p.humidity === null || p.humidity === undefined) return NaN;
+        return Number(p.humidity);
+      }
+
+      function drawSingleChart(canvasId, metric, hoverMs) {
+        const canvas = document.getElementById(canvasId);
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -206,22 +265,46 @@
 
         let minY = Infinity, maxY = -Infinity;
         for (const s of series) {
-          for (const v of (s.temps || [])) {
-            if (v === null || v === undefined) continue;
-            minY = Math.min(minY, v);
-            maxY = Math.max(maxY, v);
+          for (const p of (s.points || [])) {
+            const n = valueFromPoint(p, metric);
+            if (Number.isNaN(n)) continue;
+            minY = Math.min(minY, n);
+            maxY = Math.max(maxY, n);
           }
         }
         if (!isFinite(minY) || !isFinite(maxY)) {
           ctx.fillStyle = "#666";
-          ctx.fillText("Select at least one sensor with data.", 10, 20);
+          ctx.fillText(
+            metric === "temp"
+              ? "Select at least one sensor with temperature data."
+              : "Select at least one sensor with humidity data.",
+            10,
+            20
+          );
           return;
         }
-        if (minY === maxY) { minY -= 1; maxY += 1; }
+        if (minY === maxY) {
+          const d = metric === "temp" ? 1 : 5;
+          minY -= d;
+          maxY += d;
+        }
         const pad = (maxY - minY) * 0.1;
-        minY -= pad; maxY += pad;
+        minY -= pad;
+        maxY += pad;
 
-        function xFor(i) { return left + (i / 95) * w; }
+        if (metric === "temp") {
+          const range = maxY - minY;
+          if (range < 2) {
+            const mid = (minY + maxY) / 2;
+            minY = mid - 1;
+            maxY = mid + 1;
+          }
+        }
+        if (metric === "humidity") {
+          minY = Math.min(30, minY);
+          maxY = Math.max(80, maxY);
+        }
+
         function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
 
         ctx.strokeStyle = "#eee";
@@ -244,10 +327,11 @@
 
         ctx.fillStyle = "#444";
         ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        const yFmt = metric === "temp" ? (v) => v.toFixed(1) : (v) => String(Math.round(v));
         for (let i = 0; i <= 5; i++) {
           const v = maxY - (i / 5) * (maxY - minY);
           const y = top + (i / 5) * h;
-          ctx.fillText(v.toFixed(1), 8, y + 4);
+          ctx.fillText(yFmt(v), 8, y + 4);
         }
 
         for (let i = 0; i <= 24; i += 3) {
@@ -256,21 +340,29 @@
           ctx.fillText(label, x - 14, top + h + 20);
         }
 
+        const dayIso = document.getElementById("day").value;
+        const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+
         series.forEach((s, idx) => {
           ctx.strokeStyle = paletteColor(idx);
           ctx.lineWidth = 2;
           ctx.beginPath();
           let started = false;
-          for (let i = 0; i < 96; i++) {
-            const v = s.temps[i];
-            if (v === null || v === undefined) {
-              started = false;
-              continue;
+          const pts = [...(s.points || [])];
+          pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+          for (const p of pts) {
+            const n = valueFromPoint(p, metric);
+            if (Number.isNaN(n)) continue;
+            const tMs = Date.parse(p.ts);
+            if (Number.isNaN(tMs)) continue;
+            const x = left + ((tMs - dayStart) / daySpan) * w;
+            const y = yFor(n);
+            if (!started) {
+              ctx.moveTo(x, y);
+              started = true;
+            } else {
+              ctx.lineTo(x, y);
             }
-            const x = xFor(i);
-            const y = yFor(v);
-            if (!started) { ctx.moveTo(x, y); started = true; }
-            else { ctx.lineTo(x, y); }
           }
           ctx.stroke();
         });
@@ -285,7 +377,12 @@
           if (ly > top + h - 10) { ly = top + 8; lx += 180; }
         });
 
-        if (hoverIdx !== null) drawTooltip(ctx, canvas, hoverIdx, series, xFor);
+        if (hoverMs !== null) drawTooltip(ctx, canvas, hoverMs, series, metric);
+      }
+
+      function drawCharts() {
+        drawSingleChart("chartTemp", "temp", hoverTempMs);
+        drawSingleChart("chartHumidity", "humidity", hoverHumMs);
       }
 
       async function fetchTempDay() {
@@ -300,11 +397,17 @@
           const data = await resp.json();
           if (!resp.ok) throw new Error(JSON.stringify(data));
           tempDayData = data;
-          drawChart();
+          document.getElementById("hoverTemp").classList.remove("err");
+          document.getElementById("hoverHumidity").classList.remove("err");
+          document.getElementById("hoverTemp").textContent = "Move mouse over the graph…";
+          document.getElementById("hoverHumidity").textContent = "Move mouse over the graph…";
+          drawCharts();
         } catch (e) {
-          const hoverEl = document.getElementById("hover");
-          hoverEl.textContent = "Failed to load day data: " + e;
-          hoverEl.classList.add("err");
+          const msg = "Failed to load day data: " + e;
+          document.getElementById("hoverTemp").textContent = msg;
+          document.getElementById("hoverHumidity").textContent = msg;
+          document.getElementById("hoverTemp").classList.add("err");
+          document.getElementById("hoverHumidity").classList.add("err");
         }
       }
 
@@ -332,7 +435,7 @@
             cb.type = "checkbox";
             cb.id = `dev_${id}`;
             cb.value = String(id);
-            cb.addEventListener("change", drawChart);
+            cb.addEventListener("change", drawCharts);
 
             const label = document.createElement("label");
             label.htmlFor = cb.id;
@@ -363,42 +466,67 @@
       document.getElementById("prevDay").addEventListener("click", () => shiftDay(-1));
       document.getElementById("nextDay").addEventListener("click", () => shiftDay(1));
 
-      const canvas = document.getElementById("chart");
-      canvas.addEventListener("mousemove", (ev) => {
-        if (!tempDayData || !tempDayData.series) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = ev.clientX - rect.left;
-        const { left, w } = chartGeometry(canvas);
-        const xCanvas = (x / rect.width) * canvas.width;
-        if (xCanvas < left || xCanvas > left + w) { hoverIdx = null; drawChart(); return; }
-        const t = (xCanvas - left) / w;
-        const idx = Math.max(0, Math.min(95, Math.round(t * 95)));
-        hoverIdx = idx;
-        const timeLabel = slotToTimeLabel(idx);
+      function attachChartInteractions(canvasId, metric, hoverElId) {
+        const canvas = document.getElementById(canvasId);
+        const hoverEl = document.getElementById(hoverElId);
 
-        const hoverEl = document.getElementById("hover");
-        const series = visibleSeries();
-        if (!series.length) { hoverEl.textContent = `Time ${timeLabel} — select at least one device`; return; }
+        canvas.addEventListener("mousemove", (ev) => {
+          if (!tempDayData || !tempDayData.series) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = ev.clientX - rect.left;
+          const { left, w } = chartGeometry(canvas);
+          const xCanvas = (x / rect.width) * canvas.width;
+          if (xCanvas < left || xCanvas > left + w) {
+            if (metric === "temp") hoverTempMs = null;
+            else hoverHumMs = null;
+            hoverEl.textContent = "Move mouse over the graph…";
+            hoverEl.classList.remove("err");
+            drawCharts();
+            return;
+          }
+          const frac = (xCanvas - left) / w;
+          const tMs = timeMsFromMouseFrac(frac);
+          if (metric === "temp") hoverTempMs = tMs;
+          else hoverHumMs = tMs;
+          const timeLabel = formatTimeLabel(tMs);
 
-        let html = `<div class="title">Time ${timeLabel}</div>`;
-        series.forEach((s, i) => {
-          const v = s.temps[idx];
-          const name = niceSensorLabel(s);
-          const color = paletteColor(i);
-          if (v === null || v === undefined) html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span></div>`;
-          else html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span><span class="muted">${v.toFixed(2)} °C</span></div>`;
+          const series = visibleSeries();
+          if (!series.length) {
+            hoverEl.textContent = `Time ${timeLabel} — select at least one device`;
+            drawCharts();
+            return;
+          }
+
+          let html = `<div class="title">Time ${timeLabel}</div>`;
+          series.forEach((s, i) => {
+            const name = niceSensorLabel(s);
+            const color = paletteColor(i);
+            const p = nearestPoint(s, tMs);
+            let detail = "";
+            if (p) {
+              if (metric === "temp" && p.temp !== null && p.temp !== undefined) {
+                detail = `<span class="muted">${Number(p.temp).toFixed(2)} °C</span>`;
+              } else if (metric === "humidity" && p.humidity !== null && p.humidity !== undefined) {
+                detail = `<span class="muted">${p.humidity}% RH</span>`;
+              }
+            }
+            html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span>${detail}</div>`;
+          });
+          hoverEl.innerHTML = html;
+          hoverEl.classList.remove("err");
+          drawCharts();
         });
-        hoverEl.innerHTML = html;
-        hoverEl.classList.remove("err");
-        drawChart();
-      });
 
-      canvas.addEventListener("mouseleave", () => {
-        const hoverEl = document.getElementById("hover");
-        hoverEl.textContent = "Move mouse over the graph…";
-        hoverIdx = null;
-        drawChart();
-      });
+        canvas.addEventListener("mouseleave", () => {
+          hoverEl.textContent = "Move mouse over the graph…";
+          if (metric === "temp") hoverTempMs = null;
+          else hoverHumMs = null;
+          drawCharts();
+        });
+      }
+
+      attachChartInteractions("chartTemp", "temp", "hoverTemp");
+      attachChartInteractions("chartHumidity", "humidity", "hoverHumidity");
 
       loadDevices();
     </script>
