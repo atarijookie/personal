@@ -204,7 +204,14 @@ def create_app() -> Flask:
             "month": 3,
             "days_in_month": 31,
             "series": [
-              { "sensor_id": 123, "name": "...", "temps": [..days..], "humidities": [..days..] },
+              {
+                "sensor_id": 123,
+                "name": "...",
+                "temps": [..daily avg from slot string..],
+                "temps_min": [..t_min per day..],
+                "temps_max": [..t_max per day..],
+                "humidities": [..days..],
+              },
               ...
             ]
           }
@@ -240,7 +247,7 @@ def create_app() -> Flask:
                       FROM temps_raw tr
                       WHERE tr.datetime >= %s::date AND tr.datetime < %s::date
                     )
-                    SELECT si.sensor_id, s.name, ta.day, ta.temps, ta.humidities
+                    SELECT si.sensor_id, s.name, ta.day, ta.temps, ta.humidities, ta.t_min, ta.t_max
                     FROM sensor_ids si
                     LEFT JOIN sensors s ON s.id = si.sensor_id
                     LEFT JOIN temps_aggr ta
@@ -254,13 +261,15 @@ def create_app() -> Flask:
 
             # Build per-sensor arrays of length dim
             series_map: Dict[int, Dict[str, Any]] = {}
-            for sensor_id, name, day_val, temps_s, hum_s in rows:
+            for sensor_id, name, day_val, temps_s, hum_s, t_min, t_max in rows:
                 sensor_id = int(sensor_id)
                 if sensor_id not in series_map:
                     series_map[sensor_id] = {
                         "sensor_id": sensor_id,
                         "name": name,
                         "temps": [None] * dim,
+                        "temps_min": [None] * dim,
+                        "temps_max": [None] * dim,
                         "humidities": [None] * dim,
                     }
                 if day_val is None:
@@ -269,6 +278,10 @@ def create_app() -> Flask:
                 if 0 <= day_idx < dim:
                     series_map[sensor_id]["temps"][day_idx] = _avg_from_temps_string(temps_s, logger)
                     series_map[sensor_id]["humidities"][day_idx] = _avg_from_temps_string(hum_s, logger)
+                    if t_min is not None:
+                        series_map[sensor_id]["temps_min"][day_idx] = float(t_min)
+                    if t_max is not None:
+                        series_map[sensor_id]["temps_max"][day_idx] = float(t_max)
 
             return jsonify(
                 {

@@ -17,10 +17,6 @@
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
-      .chart-hover { margin-top: 8px; max-width: 980px; }
-      .chart-hover .title { font-weight: 600; margin-bottom: 6px; }
-      .chart-hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
-      .chart-hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
       h2.chart-section { margin-top: 28px; }
     </style>
   </head>
@@ -43,11 +39,9 @@
 
     <h2 class="chart-section">Temperatures</h2>
     <canvas id="chartTemp" width="980" height="360"></canvas>
-    <div id="hoverTemp" class="muted chart-hover">Move mouse over the graph…</div>
 
     <h2 class="chart-section">Humidity</h2>
     <canvas id="chartHumidity" width="980" height="360"></canvas>
-    <div id="hoverHumidity" class="muted chart-hover">Move mouse over the graph…</div>
 
     <script>
       let devicesById = new Map(); // id -> {id,name}
@@ -145,6 +139,33 @@
         const w = canvas.width - left - right;
         const h = canvas.height - top - bottom;
         return { left, right, top, bottom, w, h };
+      }
+
+      /** Cubic Béziers approximating Catmull–Rom; k larger = gentler curves. */
+      function strokeSmoothLineThroughPoints(ctx, points, k = 6) {
+        const n = points.length;
+        if (n === 0) return;
+        if (n === 1) {
+          ctx.moveTo(points[0].x, points[0].y);
+          return;
+        }
+        if (n === 2) {
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.lineTo(points[1].x, points[1].y);
+          return;
+        }
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < n - 1; i++) {
+          const p0 = i > 0 ? points[i - 1] : points[i];
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const p3 = i < n - 2 ? points[i + 2] : points[i + 1];
+          const cp1x = p1.x + (p2.x - p0.x) / k;
+          const cp1y = p1.y + (p2.y - p0.y) / k;
+          const cp2x = p2.x - (p3.x - p1.x) / k;
+          const cp2y = p2.y - (p3.y - p1.y) / k;
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
       }
 
       function visibleSeries() {
@@ -347,23 +368,29 @@
           ctx.strokeStyle = paletteColor(idx);
           ctx.lineWidth = 2;
           ctx.beginPath();
-          let started = false;
           const pts = [...(s.points || [])];
           pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+          let seg = [];
+          const flushSeg = () => {
+            if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
+            seg = [];
+          };
           for (const p of pts) {
             const n = valueFromPoint(p, metric);
-            if (Number.isNaN(n)) continue;
+            if (Number.isNaN(n)) {
+              flushSeg();
+              continue;
+            }
             const tMs = Date.parse(p.ts);
-            if (Number.isNaN(tMs)) continue;
+            if (Number.isNaN(tMs)) {
+              flushSeg();
+              continue;
+            }
             const x = left + ((tMs - dayStart) / daySpan) * w;
             const y = yFor(n);
-            if (!started) {
-              ctx.moveTo(x, y);
-              started = true;
-            } else {
-              ctx.lineTo(x, y);
-            }
+            seg.push({ x, y });
           }
+          flushSeg();
           ctx.stroke();
         });
 
@@ -397,17 +424,17 @@
           const data = await resp.json();
           if (!resp.ok) throw new Error(JSON.stringify(data));
           tempDayData = data;
-          document.getElementById("hoverTemp").classList.remove("err");
-          document.getElementById("hoverHumidity").classList.remove("err");
-          document.getElementById("hoverTemp").textContent = "Move mouse over the graph…";
-          document.getElementById("hoverHumidity").textContent = "Move mouse over the graph…";
+          const statusEl = document.getElementById("status");
+          if (statusEl.textContent.startsWith("Failed to load day data:")) {
+            const n = document.querySelectorAll('#devices input[type="checkbox"]').length;
+            statusEl.textContent = `Loaded ${n} device(s).`;
+          }
+          statusEl.classList.remove("err");
           drawCharts();
         } catch (e) {
-          const msg = "Failed to load day data: " + e;
-          document.getElementById("hoverTemp").textContent = msg;
-          document.getElementById("hoverHumidity").textContent = msg;
-          document.getElementById("hoverTemp").classList.add("err");
-          document.getElementById("hoverHumidity").classList.add("err");
+          const statusEl = document.getElementById("status");
+          statusEl.textContent = "Failed to load day data: " + e;
+          statusEl.classList.add("err");
         }
       }
 
@@ -466,9 +493,8 @@
       document.getElementById("prevDay").addEventListener("click", () => shiftDay(-1));
       document.getElementById("nextDay").addEventListener("click", () => shiftDay(1));
 
-      function attachChartInteractions(canvasId, metric, hoverElId) {
+      function attachChartInteractions(canvasId, metric) {
         const canvas = document.getElementById(canvasId);
-        const hoverEl = document.getElementById(hoverElId);
 
         canvas.addEventListener("mousemove", (ev) => {
           if (!tempDayData || !tempDayData.series) return;
@@ -479,8 +505,6 @@
           if (xCanvas < left || xCanvas > left + w) {
             if (metric === "temp") hoverTempMs = null;
             else hoverHumMs = null;
-            hoverEl.textContent = "Move mouse over the graph…";
-            hoverEl.classList.remove("err");
             drawCharts();
             return;
           }
@@ -488,45 +512,18 @@
           const tMs = timeMsFromMouseFrac(frac);
           if (metric === "temp") hoverTempMs = tMs;
           else hoverHumMs = tMs;
-          const timeLabel = formatTimeLabel(tMs);
-
-          const series = visibleSeries();
-          if (!series.length) {
-            hoverEl.textContent = `Time ${timeLabel} — select at least one device`;
-            drawCharts();
-            return;
-          }
-
-          let html = `<div class="title">Time ${timeLabel}</div>`;
-          series.forEach((s, i) => {
-            const name = niceSensorLabel(s);
-            const color = paletteColor(i);
-            const p = nearestPoint(s, tMs);
-            let detail = "";
-            if (p) {
-              if (metric === "temp" && p.temp !== null && p.temp !== undefined) {
-                detail = `<span class="muted">${Number(p.temp).toFixed(2)} °C</span>`;
-              } else if (metric === "humidity" && p.humidity !== null && p.humidity !== undefined) {
-                detail = `<span class="muted">${p.humidity}% RH</span>`;
-              }
-            }
-            html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span>${detail}</div>`;
-          });
-          hoverEl.innerHTML = html;
-          hoverEl.classList.remove("err");
           drawCharts();
         });
 
         canvas.addEventListener("mouseleave", () => {
-          hoverEl.textContent = "Move mouse over the graph…";
           if (metric === "temp") hoverTempMs = null;
           else hoverHumMs = null;
           drawCharts();
         });
       }
 
-      attachChartInteractions("chartTemp", "temp", "hoverTemp");
-      attachChartInteractions("chartHumidity", "humidity", "hoverHumidity");
+      attachChartInteractions("chartTemp", "temp");
+      attachChartInteractions("chartHumidity", "humidity");
 
       loadDevices();
     </script>

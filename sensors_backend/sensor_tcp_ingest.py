@@ -3,12 +3,16 @@ import json
 import logging
 import os
 import socket
+import subprocess
 import sys
+import threading
 from contextlib import closing
-from datetime import date
+from datetime import date, datetime, timedelta
 from logging.handlers import RotatingFileHandler
 import time
 from typing import Dict, List, Optional, Tuple
+
+_daily_alert_sent_on: Optional[date] = None
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -94,6 +98,92 @@ def connect_pg():
         password=cfg["password"],
         dbname=cfg["dbname"],
     )
+
+
+def _run_daily_alert_curl(body: str, url: str, logger: logging.Logger) -> None:
+    try:
+        proc = subprocess.run(
+            ["curl", "-d", body, url],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode != 0:
+            logger.warning(
+                "daily alert curl failed rc=%s stderr=%s stdout=%s",
+                proc.returncode,
+                (proc.stderr or "").strip(),
+                (proc.stdout or "").strip(),
+            )
+        else:
+            logger.info("daily alert curl ok")
+    except subprocess.TimeoutExpired:
+        logger.warning("daily alert curl timed out after 5s")
+    except Exception as e:
+        logger.warning("daily alert curl error: %s", e)
+
+
+def send_sensor_daily_alert(conn, logger: logging.Logger) -> None:
+    yesterday = date.today() - timedelta(days=1)
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM sensors;")
+        sensors_got = int(cur.fetchone()[0])
+        cur.execute(
+            """
+            SELECT COUNT(DISTINCT sensor_id)
+            FROM temps_raw
+            WHERE datetime::date = %s::date;
+            """,
+            (yesterday,),
+        )
+        sensors_reported = int(cur.fetchone()[0])
+        cur.execute(
+            """
+            SELECT s.id, COUNT(tr.sensor_id) AS cnt, MIN(tr.battery) AS min_battery
+            FROM sensors s
+            LEFT JOIN temps_raw tr
+              ON tr.sensor_id = s.id AND tr.datetime::date = %s::date
+            GROUP BY s.id
+            ORDER BY s.id ASC;
+            """,
+            (yesterday,),
+        )
+        per_sensor_rows = list(cur.fetchall())
+
+    if sensors_got == sensors_reported:
+        summary = f"All {sensors_reported} sensor(s) are alive."
+    else:
+        summary = f"From {sensors_got} sensor(s) only {sensors_reported} sensor(s) reported yesterday."
+
+    detail_lines = []
+    for sid, cnt, min_battery in per_sensor_rows:
+        bat_s = "n/a" if min_battery is None else f"{float(min_battery):.2f}"
+        detail_lines.append(f"Sensor {int(sid)} - {int(cnt)} reports, min battery {bat_s} V.")
+    body = summary + ("\n" + "\n".join(detail_lines) if detail_lines else "")
+
+    url = os.environ.get("ALERT_CURL_URL", "http://192.168.123.55:10000/alerts")
+    logger.info("daily alert POST body: %s (curl in background, 5s max)", body)
+    threading.Thread(
+        target=_run_daily_alert_curl,
+        args=(body, url, logger),
+        daemon=True,
+        name="daily-alert-curl",
+    ).start()
+
+
+def maybe_send_daily_sensor_alert(conn, logger: logging.Logger) -> None:
+    global _daily_alert_sent_on
+    if _daily_alert_sent_on == date.today():
+        return
+    now = datetime.now()
+    cutoff = now.replace(hour=7, minute=0, second=0, microsecond=0)
+    if now < cutoff:
+        return
+    try:
+        send_sensor_daily_alert(conn, logger)
+        _daily_alert_sent_on = date.today()
+    except Exception as e:
+        logger.warning("daily sensor alert failed: %s", e)
 
 
 def parse_json_line(line: str) -> Optional[dict]:
@@ -306,14 +396,23 @@ def handle_connection(
         logger.warning("connection %s error: %s", client_addr, e)
     finally:
         logger.info("client disconnected: %s", client_addr)
+    maybe_send_daily_sensor_alert(conn_pg, logger)
     return got_json
 
 
 def main() -> int:
+    global _daily_alert_sent_on
     logger = setup_logging()
     conn_pg = connect_pg()
     conn_pg.autocommit = False
     last_agg_by_sensor: Dict[int, int] = {}
+
+    if _daily_alert_sent_on is None:
+        try:
+            send_sensor_daily_alert(conn_pg, logger)
+            _daily_alert_sent_on = date.today()
+        except Exception as e:
+            logger.warning("initial daily sensor alert failed: %s", e)
 
     listen_host = os.environ.get("LISTEN_HOST", "0.0.0.0")
     listen_port = int(os.environ.get("LISTEN_PORT", "22222"))

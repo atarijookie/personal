@@ -17,10 +17,6 @@
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
-      .chart-hover { margin-top: 8px; max-width: 980px; }
-      .chart-hover .title { font-weight: 600; margin-bottom: 6px; }
-      .chart-hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
-      .chart-hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
       h2.chart-section { margin-top: 28px; }
     </style>
   </head>
@@ -43,11 +39,9 @@
 
     <h2 class="chart-section">Temperatures (daily average)</h2>
     <canvas id="chartTemp" width="980" height="360"></canvas>
-    <div id="hoverTemp" class="muted chart-hover">Move mouse over the graph…</div>
 
     <h2 class="chart-section">Humidity (daily average)</h2>
     <canvas id="chartHumidity" width="980" height="360"></canvas>
-    <div id="hoverHumidity" class="muted chart-hover">Move mouse over the graph…</div>
 
     <script>
       let devicesById = new Map();
@@ -73,6 +67,60 @@
         const w = canvas.width - left - right;
         const h = canvas.height - top - bottom;
         return { left, right, top, bottom, w, h };
+      }
+
+      function strokeSmoothLineThroughPoints(ctx, points, k = 6) {
+        const n = points.length;
+        if (n === 0) return;
+        if (n === 1) {
+          ctx.moveTo(points[0].x, points[0].y);
+          return;
+        }
+        if (n === 2) {
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.lineTo(points[1].x, points[1].y);
+          return;
+        }
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < n - 1; i++) {
+          const p0 = i > 0 ? points[i - 1] : points[i];
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const p3 = i < n - 2 ? points[i + 2] : points[i + 1];
+          const cp1x = p1.x + (p2.x - p0.x) / k;
+          const cp1y = p1.y + (p2.y - p0.y) / k;
+          const cp2x = p2.x - (p3.x - p1.x) / k;
+          const cp2y = p2.y - (p3.y - p1.y) / k;
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+      }
+
+      function drawOneSplineSeries(ctx, arr, days, xFor, yFor, strokeStyle, lineWidth, dashed) {
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.setLineDash(dashed ? [5, 4] : []);
+        ctx.beginPath();
+        let seg = [];
+        const flushSeg = () => {
+          if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
+          seg = [];
+        };
+        for (let i = 0; i < days; i++) {
+          const v = (arr || [])[i];
+          if (v === null || v === undefined) {
+            flushSeg();
+            continue;
+          }
+          const n = Number(v);
+          if (Number.isNaN(n)) {
+            flushSeg();
+            continue;
+          }
+          seg.push({ x: xFor(i), y: yFor(n) });
+        }
+        flushSeg();
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
 
       function visibleSeries() {
@@ -124,7 +172,20 @@
           if (v === null || v === undefined) continue;
           const n = Number(v);
           if (Number.isNaN(n)) continue;
-          const valStr = metric === "temp" ? `${n.toFixed(2)} °C` : `${Math.round(n)}% RH`;
+          let valStr;
+          if (metric === "temp") {
+            const vmin = (s.temps_min || [])[idx];
+            const vmax = (s.temps_max || [])[idx];
+            const hasMin = vmin != null && vmin !== undefined && !Number.isNaN(Number(vmin));
+            const hasMax = vmax != null && vmax !== undefined && !Number.isNaN(Number(vmax));
+            if (hasMin && hasMax) {
+              valStr = `${n.toFixed(2)} °C (${Number(vmin).toFixed(1)}–${Number(vmax).toFixed(1)})`;
+            } else {
+              valStr = `${n.toFixed(2)} °C`;
+            }
+          } else {
+            valStr = `${Math.round(n)}% RH`;
+          }
           lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: valStr });
         }
 
@@ -178,13 +239,18 @@
 
         let minY = Infinity, maxY = -Infinity;
         for (const s of series) {
-          const arr = metric === "temp" ? s.temps : s.humidities;
-          for (const v of (arr || [])) {
-            if (v === null || v === undefined) continue;
-            const n = Number(v);
-            if (Number.isNaN(n)) continue;
-            minY = Math.min(minY, n);
-            maxY = Math.max(maxY, n);
+          const arrs =
+            metric === "temp"
+              ? [s.temps, s.temps_min, s.temps_max]
+              : [s.humidities];
+          for (const arr of arrs) {
+            for (const v of arr || []) {
+              if (v === null || v === undefined) continue;
+              const n = Number(v);
+              if (Number.isNaN(n)) continue;
+              minY = Math.min(minY, n);
+              maxY = Math.max(maxY, n);
+            }
           }
         }
         if (!isFinite(minY) || !isFinite(maxY)) {
@@ -256,22 +322,12 @@
         }
 
         series.forEach((s, idx) => {
-          ctx.strokeStyle = paletteColor(idx);
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          let started = false;
-          const arr = metric === "temp" ? s.temps : s.humidities;
-          for (let i = 0; i < days; i++) {
-            const v = (arr || [])[i];
-            if (v === null || v === undefined) { started = false; continue; }
-            const n = Number(v);
-            if (Number.isNaN(n)) { started = false; continue; }
-            const x = xFor(i);
-            const y = yFor(n);
-            if (!started) { ctx.moveTo(x, y); started = true; }
-            else { ctx.lineTo(x, y); }
+          const col = paletteColor(idx);
+          if (metric === "temp") {
+            drawOneSplineSeries(ctx, s.temps_min, days, xFor, yFor, col, 1.5, true);
+            drawOneSplineSeries(ctx, s.temps_max, days, xFor, yFor, col, 1.5, true);
           }
-          ctx.stroke();
+          drawOneSplineSeries(ctx, metric === "temp" ? s.temps : s.humidities, days, xFor, yFor, col, 2, false);
         });
 
         let lx = left + 8, ly = top + 8;
@@ -323,17 +379,17 @@
           const data = await resp.json();
           if (!resp.ok) throw new Error(JSON.stringify(data));
           tempMonthData = data;
-          document.getElementById("hoverTemp").classList.remove("err");
-          document.getElementById("hoverHumidity").classList.remove("err");
-          document.getElementById("hoverTemp").textContent = "Move mouse over the graph…";
-          document.getElementById("hoverHumidity").textContent = "Move mouse over the graph…";
+          const statusEl = document.getElementById("status");
+          if (statusEl.textContent.startsWith("Failed to load month data:")) {
+            const n = document.querySelectorAll('#devices input[type="checkbox"]').length;
+            statusEl.textContent = `Loaded ${n} device(s).`;
+          }
+          statusEl.classList.remove("err");
           drawCharts();
         } catch (e) {
-          const msg = "Failed to load month data: " + e;
-          document.getElementById("hoverTemp").textContent = msg;
-          document.getElementById("hoverHumidity").textContent = msg;
-          document.getElementById("hoverTemp").classList.add("err");
-          document.getElementById("hoverHumidity").classList.add("err");
+          const statusEl = document.getElementById("status");
+          statusEl.textContent = "Failed to load month data: " + e;
+          statusEl.classList.add("err");
         }
       }
 
@@ -385,9 +441,8 @@
         }
       }
 
-      function attachMonthChartInteractions(canvasId, metric, hoverElId) {
+      function attachMonthChartInteractions(canvasId, metric) {
         const canvas = document.getElementById(canvasId);
-        const hoverEl = document.getElementById(hoverElId);
 
         canvas.addEventListener("mousemove", (ev) => {
           if (!tempMonthData || !tempMonthData.series) return;
@@ -399,8 +454,6 @@
           if (xCanvas < left || xCanvas > left + w) {
             if (metric === "temp") hoverTempIdx = null;
             else hoverHumIdx = null;
-            hoverEl.textContent = "Move mouse over the graph…";
-            hoverEl.classList.remove("err");
             drawCharts();
             return;
           }
@@ -408,35 +461,10 @@
           const idx = Math.max(0, Math.min(days - 1, Math.round(t * (days - 1))));
           if (metric === "temp") hoverTempIdx = idx;
           else hoverHumIdx = idx;
-
-          const series = visibleSeries();
-          if (!series.length) {
-            hoverEl.textContent = `Day ${idx + 1} — select at least one device`;
-            drawCharts();
-            return;
-          }
-
-          let html = `<div class="title">Day ${idx + 1}</div>`;
-          series.forEach((s, i) => {
-            const v = seriesValue(s, idx, metric);
-            const name = niceSensorLabel(s);
-            const color = paletteColor(i);
-            let detail = "";
-            if (v !== null && v !== undefined && !Number.isNaN(Number(v))) {
-              detail =
-                metric === "temp"
-                  ? `<span class="muted">${Number(v).toFixed(2)} °C</span>`
-                  : `<span class="muted">${Math.round(Number(v))}% RH</span>`;
-            }
-            html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span>${detail}</div>`;
-          });
-          hoverEl.innerHTML = html;
-          hoverEl.classList.remove("err");
           drawCharts();
         });
 
         canvas.addEventListener("mouseleave", () => {
-          hoverEl.textContent = "Move mouse over the graph…";
           if (metric === "temp") hoverTempIdx = null;
           else hoverHumIdx = null;
           drawCharts();
@@ -450,8 +478,8 @@
       document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
       document.getElementById("nextMonth").addEventListener("click", () => shiftMonth(1));
 
-      attachMonthChartInteractions("chartTemp", "temp", "hoverTemp");
-      attachMonthChartInteractions("chartHumidity", "humidity", "hoverHumidity");
+      attachMonthChartInteractions("chartTemp", "temp");
+      attachMonthChartInteractions("chartHumidity", "humidity");
 
       (async () => {
         await loadDevices();

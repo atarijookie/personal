@@ -17,10 +17,6 @@
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
-      #hover { margin-top: 8px; max-width: 980px; }
-      #hover .title { font-weight: 600; margin-bottom: 6px; }
-      #hover .line { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #222; }
-      #hover .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
     </style>
   </head>
   <body>
@@ -42,7 +38,6 @@
 
     <h2>Battery (daily)</h2>
     <canvas id="chart" width="980" height="360"></canvas>
-    <div id="hover" class="muted">Move mouse over the graph…</div>
 
     <script>
       let devicesById = new Map();
@@ -67,6 +62,32 @@
         const w = canvas.width - left - right;
         const h = canvas.height - top - bottom;
         return { left, right, top, bottom, w, h };
+      }
+
+      function strokeSmoothLineThroughPoints(ctx, points, k = 6) {
+        const n = points.length;
+        if (n === 0) return;
+        if (n === 1) {
+          ctx.moveTo(points[0].x, points[0].y);
+          return;
+        }
+        if (n === 2) {
+          ctx.moveTo(points[0].x, points[0].y);
+          ctx.lineTo(points[1].x, points[1].y);
+          return;
+        }
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < n - 1; i++) {
+          const p0 = i > 0 ? points[i - 1] : points[i];
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const p3 = i < n - 2 ? points[i + 2] : points[i + 1];
+          const cp1x = p1.x + (p2.x - p0.x) / k;
+          const cp1y = p1.y + (p2.y - p0.y) / k;
+          const cp2x = p2.x - (p3.x - p1.x) / k;
+          const cp2y = p2.y - (p3.y - p1.y) / k;
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
       }
 
       function visibleSeries() {
@@ -243,17 +264,25 @@
           ctx.strokeStyle = paletteColor(idx);
           ctx.lineWidth = 2;
           ctx.beginPath();
-          let started = false;
+          let seg = [];
+          const flushSeg = () => {
+            if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
+            seg = [];
+          };
           for (let i = 0; i < days; i++) {
             const v = s.batteries[i];
-            if (v === null || v === undefined) { started = false; continue; }
+            if (v === null || v === undefined) {
+              flushSeg();
+              continue;
+            }
             const n = Number(v);
-            if (Number.isNaN(n)) { started = false; continue; }
-            const x = xFor(i);
-            const y = yFor(n);
-            if (!started) { ctx.moveTo(x, y); started = true; }
-            else { ctx.lineTo(x, y); }
+            if (Number.isNaN(n)) {
+              flushSeg();
+              continue;
+            }
+            seg.push({ x: xFor(i), y: yFor(n) });
           }
+          flushSeg();
           ctx.stroke();
         });
 
@@ -302,14 +331,17 @@
           if (!resp.ok) throw new Error(JSON.stringify(data));
           applyBatteryDenseArrays(data);
           batteryMonthData = data;
-          const hoverEl = document.getElementById("hover");
-          hoverEl.textContent = "Move mouse over the graph…";
-          hoverEl.classList.remove("err");
+          const statusEl = document.getElementById("status");
+          if (statusEl.textContent.startsWith("Failed to load battery data:")) {
+            const n = document.querySelectorAll('#devices input[type="checkbox"]').length;
+            statusEl.textContent = `Loaded ${n} device(s).`;
+          }
+          statusEl.classList.remove("err");
           drawChart();
         } catch (e) {
-          const hoverEl = document.getElementById("hover");
-          hoverEl.textContent = "Failed to load battery data: " + e;
-          hoverEl.classList.add("err");
+          const statusEl = document.getElementById("status");
+          statusEl.textContent = "Failed to load battery data: " + e;
+          statusEl.classList.add("err");
         }
       }
 
@@ -376,32 +408,18 @@
         const { left, w } = chartGeometry(canvas);
         const xCanvas = (x / rect.width) * canvas.width;
         const days = batteryMonthData.days_in_month || 30;
-        if (xCanvas < left || xCanvas > left + w) { hoverIdx = null; drawChart(); return; }
+        if (xCanvas < left || xCanvas > left + w) {
+          hoverIdx = null;
+          drawChart();
+          return;
+        }
         const t = (xCanvas - left) / w;
         const idx = Math.max(0, Math.min(days - 1, Math.round(t * (days - 1))));
         hoverIdx = idx;
-
-        const hoverEl = document.getElementById("hover");
-        const series = visibleSeries();
-        const dayStr = dayLabelForIndex(idx, batteryMonthData);
-        if (!series.length) { hoverEl.textContent = `${dayStr} — select at least one device`; return; }
-
-        let html = `<div class="title">${dayStr}</div>`;
-        series.forEach((s, i) => {
-          const v = s.batteries[idx];
-          const name = niceSensorLabel(s);
-          const color = paletteColor(i);
-          if (v === null || v === undefined) html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span></div>`;
-          else html += `<div class="line"><span class="swatch" style="background:${color}"></span><span>${name}</span><span class="muted">${Number(v).toFixed(2)} V</span></div>`;
-        });
-        hoverEl.innerHTML = html;
-        hoverEl.classList.remove("err");
         drawChart();
       });
 
       canvas.addEventListener("mouseleave", () => {
-        const hoverEl = document.getElementById("hover");
-        hoverEl.textContent = "Move mouse over the graph…";
         hoverIdx = null;
         drawChart();
       });
