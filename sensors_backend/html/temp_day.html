@@ -430,7 +430,6 @@
           statusEl.textContent = `Loaded ${devices.length} device(s).`;
           statusEl.classList.remove("err");
 
-          let lowestId = null;
           for (const d of devices) {
             const id = d.id;
             const name = d.name ?? "";
@@ -443,6 +442,7 @@
             cb.type = "checkbox";
             cb.id = `dev_${id}`;
             cb.value = String(id);
+            cb.checked = true;
             cb.addEventListener("change", drawCharts);
 
             const label = document.createElement("label");
@@ -453,15 +453,9 @@
             row.appendChild(label);
             devicesEl.appendChild(row);
 
-            if (lowestId === null || id < lowestId) lowestId = id;
             devicesById.set(id, { id, name });
           }
-
-          if (lowestId !== null) {
-            const firstCb = document.getElementById(`dev_${lowestId}`);
-            if (firstCb) firstCb.checked = true;
-            await fetchTempDay();
-          }
+          await fetchTempDay();
         } catch (e) {
           statusEl.textContent = "Failed to load devices: " + e;
           statusEl.classList.add("err");
