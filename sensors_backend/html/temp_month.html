@@ -282,6 +282,29 @@
           ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
         }
 
+        if (metric === "temp") {
+          ctx.save();
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          if (minY <= 0 && maxY >= 0) {
+            ctx.strokeStyle = "#1565c0";
+            const y0 = yFor(0);
+            ctx.beginPath();
+            ctx.moveTo(left, y0);
+            ctx.lineTo(left + w, y0);
+            ctx.stroke();
+          }
+          if (minY <= 10 && maxY >= 10) {
+            ctx.strokeStyle = "#f9a825";
+            const y10 = yFor(10);
+            ctx.beginPath();
+            ctx.moveTo(left, y10);
+            ctx.lineTo(left + w, y10);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
         ctx.strokeStyle = "#bbb";
         ctx.beginPath();
         ctx.moveTo(left, top);
@@ -296,6 +319,18 @@
           const v = maxY - (i / 5) * (maxY - minY);
           const y = top + (i / 5) * h;
           ctx.fillText(yFmt(v), 8, y + 4);
+        }
+        if (metric === "temp" && minY <= 0 && maxY >= 0) {
+          const y0 = yFor(0);
+          ctx.fillStyle = "#1565c0";
+          ctx.fillText(yFmt(0), 8, y0 + 4);
+          ctx.fillStyle = "#444";
+        }
+        if (metric === "temp" && minY <= 10 && maxY >= 10) {
+          const y10 = yFor(10);
+          ctx.fillStyle = "#f9a825";
+          ctx.fillText(yFmt(10), 8, y10 + 4);
+          ctx.fillStyle = "#444";
         }
 
         for (let d = 1; d <= days; d += 5) {

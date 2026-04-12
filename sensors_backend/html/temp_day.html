@@ -38,7 +38,7 @@
     </div>
 
     <h2 class="chart-section">Temperatures</h2>
-    <canvas id="chartTemp" width="980" height="360"></canvas>
+    <canvas id="chartTemp" width="980" height="378"></canvas>
 
     <h2 class="chart-section">Humidity</h2>
     <canvas id="chartHumidity" width="980" height="360"></canvas>
@@ -93,6 +93,119 @@
         return colors[i % colors.length];
       }
 
+      /** Košice, SK — WGS84; sun math from SunCalc (c) Vladimir Agafonkin, BSD-2-Clause */
+      const KOSICE_LAT = 48.721;
+      const KOSICE_LNG = 21.258;
+
+      const kosiceSolarDayTimes = (() => {
+        const PI = Math.PI,
+          sin = Math.sin,
+          cos = Math.cos,
+          tan = Math.tan,
+          asin = Math.asin,
+          atan = Math.atan2,
+          acos = Math.acos,
+          rad = PI / 180;
+        const dayMs = 86400000,
+          J1970 = 2440588,
+          J2000 = 2451545;
+        const e = rad * 23.4397;
+
+        function toJulian(date) {
+          return date.valueOf() / dayMs - 0.5 + J1970;
+        }
+        function fromJulian(j) {
+          return new Date((j + 0.5 - J1970) * dayMs);
+        }
+        function toDays(date) {
+          return toJulian(date) - J2000;
+        }
+
+        function rightAscension(l, b) {
+          return atan(sin(l) * cos(e) - tan(b) * sin(e), cos(l));
+        }
+        function declination(l, b) {
+          return asin(sin(b) * cos(e) + cos(b) * sin(e) * sin(l));
+        }
+
+        function solarMeanAnomaly(d) {
+          return rad * (357.5291 + 0.98560028 * d);
+        }
+        function eclipticLongitude(M) {
+          const C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)),
+            P = rad * 102.9372;
+          return M + C + P + PI;
+        }
+        function sunCoords(d) {
+          const M = solarMeanAnomaly(d),
+            L = eclipticLongitude(M);
+          return { dec: declination(L, 0), ra: rightAscension(L, 0) };
+        }
+
+        const times = [
+          [-0.833, "sunrise", "sunset"],
+          [-6, "dawn", "dusk"],
+          [-18, "nightEnd", "night"],
+        ];
+        const J0 = 0.0009;
+
+        function julianCycle(d, lw) {
+          return Math.round(d - J0 - lw / (2 * PI));
+        }
+        function approxTransit(Ht, lw, n) {
+          return J0 + (Ht + lw) / (2 * PI) + n;
+        }
+        function solarTransitJ(ds, M, L) {
+          return J2000 + ds + 0.0053 * sin(M) - 0.0069 * sin(2 * L);
+        }
+        function hourAngle(h, phi, d) {
+          return acos((sin(h) - sin(phi) * sin(d)) / (cos(phi) * cos(d)));
+        }
+        function observerAngle(height) {
+          return (-2.076 * Math.sqrt(height || 0)) / 60;
+        }
+        function getSetJ(h, lw, phi, dec, n, M, L) {
+          const w = hourAngle(h, phi, dec),
+            a = approxTransit(w, lw, n);
+          return solarTransitJ(a, M, L);
+        }
+
+        function getTimes(date, lat, lng, height) {
+          const lw = rad * -lng,
+            phi = rad * lat,
+            dh = observerAngle(height),
+            d = toDays(date),
+            n = julianCycle(d, lw),
+            ds = approxTransit(0, lw, n),
+            M = solarMeanAnomaly(ds),
+            L = eclipticLongitude(M),
+            dec = declination(L, 0),
+            Jnoon = solarTransitJ(ds, M, L),
+            result = { solarNoon: fromJulian(Jnoon), nadir: fromJulian(Jnoon - 0.5) };
+          for (const time of times) {
+            const h0 = (time[0] + dh) * rad;
+            const Jset = getSetJ(h0, lw, phi, dec, n, M, L);
+            const Jrise = Jnoon - (Jset - Jnoon);
+            result[time[1]] = fromJulian(Jrise);
+            result[time[2]] = fromJulian(Jset);
+          }
+          return result;
+        }
+
+        return function kosiceSolarDayTimesInner(isoDay) {
+          const [y, m, d] = isoDay.split("-").map(n => parseInt(n, 10));
+          if (!y || !m || !d) return null;
+          const ref = new Date(y, m - 1, d, 12, 0, 0, 0);
+          return getTimes(ref, KOSICE_LAT, KOSICE_LNG, 0);
+        };
+      })();
+
+      function solarInstantMs(d) {
+        if (!d || !(d instanceof Date)) return null;
+        const t = d.getTime();
+        return Number.isFinite(t) ? t : null;
+      }
+
       function dayBoundsMs(isoDay) {
         const [y, m, d] = isoDay.split("-").map(n => parseInt(n, 10));
         const start = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
@@ -114,7 +227,11 @@
       }
 
       function formatTimeLabel(tMs) {
-        return new Date(tMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const d = new Date(tMs);
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
       }
 
       function nearestPoint(series, timeMs) {
@@ -139,6 +256,47 @@
         const w = canvas.width - left - right;
         const h = canvas.height - top - bottom;
         return { left, right, top, bottom, w, h };
+      }
+
+      /** FL = civil dawn (−6°); TD = astronomical dusk (full dark); max = solar noon (Košice). */
+      function drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, linesOnly) {
+        const st = kosiceSolarDayTimes(dayIso);
+        if (!st) return;
+        const dayEnd = dayStart + daySpan;
+        const marks = [
+          { t: solarInstantMs(st.dawn), color: "#3949ab", dash: [4, 4], lab: "FL" },
+          { t: solarInstantMs(st.sunrise), color: "#e65100", dash: [], lab: "SR" },
+          { t: solarInstantMs(st.solarNoon), color: "#b71c1c", dash: [6, 3], lab: "max" },
+          { t: solarInstantMs(st.sunset), color: "#5d4037", dash: [], lab: "SS" },
+          { t: solarInstantMs(st.night), color: "#263238", dash: [4, 4], lab: "TD" },
+        ];
+        for (const m of marks) {
+          if (m.t === null || m.t < dayStart || m.t > dayEnd) continue;
+          const x = left + ((m.t - dayStart) / daySpan) * w;
+          const xr = Math.round(x) + 0.5;
+          if (linesOnly) {
+            ctx.save();
+            ctx.strokeStyle = m.color;
+            ctx.globalAlpha = 0.9;
+            ctx.lineWidth = m.lab === "max" ? 2 : 1.25;
+            ctx.setLineDash(m.dash);
+            ctx.beginPath();
+            ctx.moveTo(xr, top);
+            ctx.lineTo(xr, top + h);
+            ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.save();
+            ctx.font = "bold 9px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+            ctx.fillStyle = m.color;
+            const tw = ctx.measureText(m.lab).width;
+            let lx = x - tw / 2;
+            if (lx < left) lx = left;
+            if (lx + tw > left + w) lx = left + w - tw;
+            ctx.fillText(m.lab, lx, top + h + 22);
+            ctx.restore();
+          }
+        }
       }
 
       function strokeSmoothLineThroughPoints(ctx, points) {
@@ -172,16 +330,9 @@
 
       function drawTooltip(ctx, canvas, tMs, series, metric) {
         if (tMs === null || tMs === undefined) return;
+        if (tMs > Date.now()) return;
         const geom = chartGeometry(canvas);
         const x = xForTimeMs(canvas, tMs);
-
-        ctx.save();
-        ctx.strokeStyle = "rgba(0,0,0,0.25)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, geom.top);
-        ctx.lineTo(x, geom.top + geom.h);
-        ctx.stroke();
 
         const timeLabel = formatTimeLabel(tMs);
         const lines = [];
@@ -201,6 +352,15 @@
             lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${Math.round(n)}% RH` });
           }
         }
+        if (lines.length === 0) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, geom.top);
+        ctx.lineTo(x, geom.top + geom.h);
+        ctx.stroke();
 
         const header = `Time ${timeLabel}`;
         const font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
@@ -309,6 +469,9 @@
 
         function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
 
+        const dayIso = document.getElementById("day").value;
+        const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+
         ctx.strokeStyle = "#eee";
         ctx.lineWidth = 1;
         for (let i = 0; i <= 24; i++) {
@@ -318,6 +481,29 @@
         for (let i = 0; i <= 5; i++) {
           const y = top + (i / 5) * h;
           ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
+        }
+
+        if (metric === "temp") {
+          ctx.save();
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          if (minY <= 0 && maxY >= 0) {
+            ctx.strokeStyle = "#1565c0";
+            const y0 = yFor(0);
+            ctx.beginPath();
+            ctx.moveTo(left, y0);
+            ctx.lineTo(left + w, y0);
+            ctx.stroke();
+          }
+          if (minY <= 10 && maxY >= 10) {
+            ctx.strokeStyle = "#f9a825";
+            const y10 = yFor(10);
+            ctx.beginPath();
+            ctx.moveTo(left, y10);
+            ctx.lineTo(left + w, y10);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
 
         ctx.strokeStyle = "#bbb";
@@ -335,15 +521,28 @@
           const y = top + (i / 5) * h;
           ctx.fillText(yFmt(v), 8, y + 4);
         }
+        if (metric === "temp" && minY <= 0 && maxY >= 0) {
+          const y0 = yFor(0);
+          ctx.fillStyle = "#1565c0";
+          ctx.fillText(yFmt(0), 8, y0 + 4);
+          ctx.fillStyle = "#444";
+        }
+        if (metric === "temp" && minY <= 10 && maxY >= 10) {
+          const y10 = yFor(10);
+          ctx.fillStyle = "#f9a825";
+          ctx.fillText(yFmt(10), 8, y10 + 4);
+          ctx.fillStyle = "#444";
+        }
 
         for (let i = 0; i <= 24; i += 3) {
           const x = left + (i / 24) * w;
           const label = String(i).padStart(2, "0") + ":00";
-          ctx.fillText(label, x - 14, top + h + 20);
+          ctx.fillText(label, x - 14, top + h + 10);
         }
 
-        const dayIso = document.getElementById("day").value;
-        const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+        if (metric === "temp") {
+          drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, true);
+        }
 
         series.forEach((s, idx) => {
           ctx.strokeStyle = paletteColor(idx);
@@ -374,6 +573,10 @@
           flushSeg();
           ctx.stroke();
         });
+
+        if (metric === "temp") {
+          drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, false);
+        }
 
         let lx = left + 8, ly = top + 8;
         series.forEach((s, idx) => {
