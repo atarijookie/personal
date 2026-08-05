@@ -1614,82 +1614,6 @@ W = angled&lt;p&gt;
 </deviceset>
 </devicesets>
 </library>
-<library name="AP2202K-3.3TRG1">
-<description>&lt;DiodesZetex AP2202K-3.3TRG1, LDO Voltage Regulator, 150mA, 3.3 V +/-2%, 2.5 to 13.2 Vin, 5-Pin SOT-23&lt;/b&gt;&lt;p&gt;
-&lt;author&gt;Created by SamacSys&lt;/author&gt;</description>
-<packages>
-<package name="SOT95P282X145-5N">
-<description>&lt;b&gt;SOT-23-5-1&lt;/b&gt;&lt;br&gt;
-</description>
-<smd name="1" x="-1.25" y="0.95" dx="1.2" dy="0.6" layer="1"/>
-<smd name="2" x="-1.25" y="0" dx="1.2" dy="0.6" layer="1"/>
-<smd name="3" x="-1.25" y="-0.95" dx="1.2" dy="0.6" layer="1"/>
-<smd name="4" x="1.25" y="-0.95" dx="1.2" dy="0.6" layer="1"/>
-<smd name="5" x="1.25" y="0.95" dx="1.2" dy="0.6" layer="1"/>
-<text x="0" y="0" size="1.27" layer="25" align="center">&gt;NAME</text>
-<text x="0" y="0" size="1.27" layer="27" align="center">&gt;VALUE</text>
-<wire x1="-2.1" y1="1.8" x2="2.1" y2="1.8" width="0.05" layer="51"/>
-<wire x1="2.1" y1="1.8" x2="2.1" y2="-1.8" width="0.05" layer="51"/>
-<wire x1="2.1" y1="-1.8" x2="-2.1" y2="-1.8" width="0.05" layer="51"/>
-<wire x1="-2.1" y1="-1.8" x2="-2.1" y2="1.8" width="0.05" layer="51"/>
-<wire x1="-0.8" y1="1.48" x2="0.8" y2="1.48" width="0.1" layer="51"/>
-<wire x1="0.8" y1="1.48" x2="0.8" y2="-1.48" width="0.1" layer="51"/>
-<wire x1="0.8" y1="-1.48" x2="-0.8" y2="-1.48" width="0.1" layer="51"/>
-<wire x1="-0.8" y1="-1.48" x2="-0.8" y2="1.48" width="0.1" layer="51"/>
-<wire x1="-0.8" y1="0.53" x2="0.15" y2="1.48" width="0.1" layer="51"/>
-<wire x1="-0.3" y1="1.48" x2="0.3" y2="1.48" width="0.2" layer="21"/>
-<wire x1="0.3" y1="1.48" x2="0.3" y2="-1.48" width="0.2" layer="21"/>
-<wire x1="0.3" y1="-1.48" x2="-0.3" y2="-1.48" width="0.2" layer="21"/>
-<wire x1="-0.3" y1="-1.48" x2="-0.3" y2="1.48" width="0.2" layer="21"/>
-<wire x1="-1.85" y1="1.5" x2="-0.65" y2="1.5" width="0.2" layer="21"/>
-</package>
-</packages>
-<symbols>
-<symbol name="AP2202K-3.3TRG1">
-<wire x1="5.08" y1="2.54" x2="22.86" y2="2.54" width="0.254" layer="94"/>
-<wire x1="22.86" y1="-7.62" x2="22.86" y2="2.54" width="0.254" layer="94"/>
-<wire x1="22.86" y1="-7.62" x2="5.08" y2="-7.62" width="0.254" layer="94"/>
-<wire x1="5.08" y1="2.54" x2="5.08" y2="-7.62" width="0.254" layer="94"/>
-<text x="24.13" y="7.62" size="1.778" layer="95" align="center-left">&gt;NAME</text>
-<text x="24.13" y="5.08" size="1.778" layer="96" align="center-left">&gt;VALUE</text>
-<pin name="VIN" x="0" y="0" length="middle"/>
-<pin name="GND" x="0" y="-2.54" length="middle"/>
-<pin name="EN" x="0" y="-5.08" length="middle"/>
-<pin name="ADJ" x="27.94" y="0" length="middle" rot="R180"/>
-<pin name="VOUT" x="27.94" y="-2.54" length="middle" rot="R180"/>
-</symbol>
-</symbols>
-<devicesets>
-<deviceset name="AP2202K-3.3TRG1" prefix="PS">
-<description>&lt;b&gt;DiodesZetex AP2202K-3.3TRG1, LDO Voltage Regulator, 150mA, 3.3 V +/-2%, 2.5 to 13.2 Vin, 5-Pin SOT-23&lt;/b&gt;&lt;p&gt;
-Source: &lt;a href="https://www.diodes.com//assets/Datasheets/AP2202.pdf"&gt; Datasheet &lt;/a&gt;</description>
-<gates>
-<gate name="G$1" symbol="AP2202K-3.3TRG1" x="0" y="0"/>
-</gates>
-<devices>
-<device name="" package="SOT95P282X145-5N">
-<connects>
-<connect gate="G$1" pin="ADJ" pad="4"/>
-<connect gate="G$1" pin="EN" pad="3"/>
-<connect gate="G$1" pin="GND" pad="2"/>
-<connect gate="G$1" pin="VIN" pad="1"/>
-<connect gate="G$1" pin="VOUT" pad="5"/>
-</connects>
-<technologies>
-<technology name="">
-<attribute name="DESCRIPTION" value="DiodesZetex AP2202K-3.3TRG1, LDO Voltage Regulator, 150mA, 3.3 V +/-2%, 2.5 to 13.2 Vin, 5-Pin SOT-23" constant="no"/>
-<attribute name="HEIGHT" value="1.45mm" constant="no"/>
-<attribute name="MANUFACTURER_NAME" value="Diodes Incorporated" constant="no"/>
-<attribute name="MANUFACTURER_PART_NUMBER" value="AP2202K-3.3TRG1" constant="no"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" constant="no"/>
-<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" constant="no"/>
-</technology>
-</technologies>
-</device>
-</devices>
-</deviceset>
-</devicesets>
-</library>
 <library name="con-lstb">
 <description>&lt;b&gt;Pin Headers&lt;/b&gt;&lt;p&gt;
 Naming:&lt;p&gt;
@@ -4064,6 +3988,79 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 </deviceset>
 </devicesets>
 </library>
+<library name="TLV1117LV33DCYR">
+<description>&lt;1-A, Positive Fixed Voltage, Low-Dropout Regulator&lt;/b&gt;&lt;p&gt;
+&lt;author&gt;Created by SamacSys&lt;/author&gt;</description>
+<packages>
+<package name="SOT230P700X180-4N">
+<description>&lt;b&gt;TLV1117LV33DCYR&lt;/b&gt;&lt;br&gt;
+</description>
+<smd name="1" x="-3.15" y="2.3" dx="1.75" dy="0.95" layer="1"/>
+<smd name="2" x="-3.15" y="0" dx="1.75" dy="0.95" layer="1"/>
+<smd name="3" x="-3.15" y="-2.3" dx="1.75" dy="0.95" layer="1"/>
+<smd name="4" x="3.15" y="0" dx="3.2" dy="1.75" layer="1" rot="R90"/>
+<text x="0" y="0" size="1.27" layer="25" align="center">&gt;NAME</text>
+<text x="0" y="0" size="1.27" layer="27" align="center">&gt;VALUE</text>
+<wire x1="-4.275" y1="3.6" x2="4.275" y2="3.6" width="0.05" layer="51"/>
+<wire x1="4.275" y1="3.6" x2="4.275" y2="-3.6" width="0.05" layer="51"/>
+<wire x1="4.275" y1="-3.6" x2="-4.275" y2="-3.6" width="0.05" layer="51"/>
+<wire x1="-4.275" y1="-3.6" x2="-4.275" y2="3.6" width="0.05" layer="51"/>
+<wire x1="-1.75" y1="3.25" x2="1.75" y2="3.25" width="0.1" layer="51"/>
+<wire x1="1.75" y1="3.25" x2="1.75" y2="-3.25" width="0.1" layer="51"/>
+<wire x1="1.75" y1="-3.25" x2="-1.75" y2="-3.25" width="0.1" layer="51"/>
+<wire x1="-1.75" y1="-3.25" x2="-1.75" y2="3.25" width="0.1" layer="51"/>
+<wire x1="-1.75" y1="0.95" x2="0.55" y2="3.25" width="0.1" layer="51"/>
+<wire x1="-1.75" y1="3.25" x2="1.75" y2="3.25" width="0.2" layer="21"/>
+<wire x1="1.75" y1="3.25" x2="1.75" y2="-3.25" width="0.2" layer="21"/>
+<wire x1="1.75" y1="-3.25" x2="-1.75" y2="-3.25" width="0.2" layer="21"/>
+<wire x1="-1.75" y1="-3.25" x2="-1.75" y2="3.25" width="0.2" layer="21"/>
+<wire x1="-4.025" y1="3.125" x2="-2.275" y2="3.125" width="0.2" layer="21"/>
+</package>
+</packages>
+<symbols>
+<symbol name="TLV1117LV33DCYR">
+<wire x1="5.08" y1="2.54" x2="33.02" y2="2.54" width="0.254" layer="94"/>
+<wire x1="33.02" y1="-7.62" x2="33.02" y2="2.54" width="0.254" layer="94"/>
+<wire x1="33.02" y1="-7.62" x2="5.08" y2="-7.62" width="0.254" layer="94"/>
+<wire x1="5.08" y1="2.54" x2="5.08" y2="-7.62" width="0.254" layer="94"/>
+<text x="34.29" y="7.62" size="1.778" layer="95" align="center-left">&gt;NAME</text>
+<text x="34.29" y="5.08" size="1.778" layer="96" align="center-left">&gt;VALUE</text>
+<pin name="GND" x="0" y="0" length="middle"/>
+<pin name="OUTPUT_1" x="0" y="-2.54" length="middle"/>
+<pin name="INPUT" x="0" y="-5.08" length="middle"/>
+<pin name="OUTPUT_2" x="38.1" y="0" length="middle" rot="R180"/>
+</symbol>
+</symbols>
+<devicesets>
+<deviceset name="TLV1117LV33DCYR" prefix="IC">
+<description>&lt;b&gt;1-A, Positive Fixed Voltage, Low-Dropout Regulator&lt;/b&gt;&lt;p&gt;
+Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt;</description>
+<gates>
+<gate name="G$1" symbol="TLV1117LV33DCYR" x="0" y="0"/>
+</gates>
+<devices>
+<device name="" package="SOT230P700X180-4N">
+<connects>
+<connect gate="G$1" pin="GND" pad="1"/>
+<connect gate="G$1" pin="INPUT" pad="3"/>
+<connect gate="G$1" pin="OUTPUT_1" pad="2"/>
+<connect gate="G$1" pin="OUTPUT_2" pad="4"/>
+</connects>
+<technologies>
+<technology name="">
+<attribute name="DESCRIPTION" value="1-A, Positive Fixed Voltage, Low-Dropout Regulator" constant="no"/>
+<attribute name="HEIGHT" value="1.8mm" constant="no"/>
+<attribute name="MANUFACTURER_NAME" value="Texas Instruments" constant="no"/>
+<attribute name="MANUFACTURER_PART_NUMBER" value="TLV1117LV33DCYR" constant="no"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PART_NUMBER" value="" constant="no"/>
+<attribute name="TME_ELECTRONIC_COMPONENTS_PRICE-STOCK" value="" constant="no"/>
+</technology>
+</technologies>
+</device>
+</devices>
+</deviceset>
+</devicesets>
+</library>
 </libraries>
 <attributes>
 </attributes>
@@ -4083,7 +4080,6 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <part name="R4" library="microbuilder" deviceset="RESISTOR" device="_0603" value="10k"/>
 <part name="R5" library="microbuilder" deviceset="RESISTOR" device="_0603" value="10k"/>
 <part name="U$7" library="microbuilder" deviceset="GND" device=""/>
-<part name="PS1" library="AP2202K-3.3TRG1" deviceset="AP2202K-3.3TRG1" device="" value="LDI8119-3.3EN-DIO"/>
 <part name="C4" library="293D226X9010A2TE3" deviceset="293D226X9010A2TE3" device="" value="22 uF">
 <attribute name="DESCRIPTION" value="Solid Tantalum Surface Mount Chip Capacitors TANTAMOUNT(TM), Molded Case, Standard Industrial Grade"/>
 <attribute name="HEIGHT" value="1.8mm"/>
@@ -4186,6 +4182,7 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <part name="U$20" library="other" deviceset="R_HIGH_POWER" device="" value="6.8 R / 3W (wire-wound resistor, required)"/>
 <part name="C12" library="EEUFR1E221B" deviceset="EEUFR1E221B" device="" value="220 uF, low ESR"/>
 <part name="SV3" library="con-lstb" deviceset="MA05-1" device=""/>
+<part name="IC1" library="TLV1117LV33DCYR" deviceset="TLV1117LV33DCYR" device=""/>
 </parts>
 <sheets>
 <sheet>
@@ -4198,9 +4195,9 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <wire x1="304.8" y1="10.16" x2="304.8" y2="83.82" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="304.8" y1="83.82" x2="111.76" y2="83.82" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="20.32" y1="383.54" x2="20.32" y2="269.24" width="0.1524" layer="94" style="shortdash"/>
-<wire x1="20.32" y1="269.24" x2="294.64" y2="269.24" width="0.1524" layer="94" style="shortdash"/>
-<wire x1="294.64" y1="269.24" x2="294.64" y2="383.54" width="0.1524" layer="94" style="shortdash"/>
-<wire x1="294.64" y1="383.54" x2="20.32" y2="383.54" width="0.1524" layer="94" style="shortdash"/>
+<wire x1="20.32" y1="269.24" x2="302.26" y2="269.24" width="0.1524" layer="94" style="shortdash"/>
+<wire x1="302.26" y1="269.24" x2="302.26" y2="383.54" width="0.1524" layer="94" style="shortdash"/>
+<wire x1="302.26" y1="383.54" x2="20.32" y2="383.54" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="175.26" y1="213.36" x2="175.26" y2="162.56" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="175.26" y1="162.56" x2="215.9" y2="162.56" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="215.9" y1="162.56" x2="215.9" y2="213.36" width="0.1524" layer="94" style="shortdash"/>
@@ -4225,15 +4222,14 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <instance part="D1" gate="G$1" x="193.04" y="302.26" rot="MR270"/>
 <instance part="U$6" gate="G$1" x="193.04" y="281.94"/>
 <instance part="U$10" gate="G$1" x="149.86" y="287.02"/>
-<instance part="C2" gate="G$1" x="248.92" y="307.34" rot="R270"/>
+<instance part="C2" gate="G$1" x="261.62" y="307.34" rot="R270"/>
 <instance part="SV1" gate="G$1" x="162.56" y="223.52" rot="R180"/>
 <instance part="R4" gate="G$1" x="139.7" y="241.3" rot="R90"/>
 <instance part="R5" gate="G$1" x="134.62" y="241.3" rot="R90"/>
 <instance part="U$7" gate="G$1" x="152.4" y="210.82"/>
-<instance part="PS1" gate="G$1" x="215.9" y="312.42"/>
-<instance part="C4" gate="G$1" x="256.54" y="307.34" rot="R270"/>
+<instance part="C4" gate="G$1" x="269.24" y="307.34" rot="R270"/>
 <instance part="U$5" gate="G$1" x="213.36" y="289.56"/>
-<instance part="U$8" gate="G$1" x="256.54" y="287.02"/>
+<instance part="U$8" gate="G$1" x="269.24" y="287.02"/>
 <instance part="SV2" gate="G$1" x="208.28" y="190.5" rot="R180"/>
 <instance part="U$12" gate="G$1" x="198.12" y="172.72"/>
 <instance part="R6" gate="G$1" x="187.96" y="198.12" rot="R90"/>
@@ -4241,13 +4237,13 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <instance part="C7" gate="G$1" x="132.08" y="185.42"/>
 <instance part="U$13" gate="G$1" x="132.08" y="177.8"/>
 <instance part="R8" gate="G$1" x="142.24" y="185.42" rot="R90"/>
-<instance part="C8" gate="G$1" x="270.256" y="299.72"/>
+<instance part="C8" gate="G$1" x="282.956" y="299.72"/>
 <instance part="IC2" gate="G$1" x="30.48" y="116.84"/>
 <instance part="U$16" gate="G$1" x="20.32" y="81.28" rot="R270"/>
 <instance part="U$17" gate="G$1" x="20.32" y="116.84" rot="R270"/>
 <instance part="U$18" gate="G$1" x="71.12" y="55.88"/>
 <instance part="C11" gate="G$1" x="200.66" y="302.26"/>
-<instance part="C5" gate="G$1" x="264.16" y="299.72"/>
+<instance part="C5" gate="G$1" x="276.86" y="299.72"/>
 <instance part="R1" gate="G$1" x="193.04" y="292.1" rot="R270"/>
 <instance part="C3" gate="G$1" x="205.74" y="309.88" rot="R270"/>
 <instance part="R12" gate="G$1" x="129.54" y="241.3" rot="R90"/>
@@ -4291,6 +4287,7 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <instance part="U$20" gate="G$1" x="88.9" y="312.42"/>
 <instance part="C12" gate="G$1" x="149.86" y="309.88" rot="R270"/>
 <instance part="SV3" gate="G$1" x="162.56" y="180.34" rot="R180"/>
+<instance part="IC1" gate="G$1" x="218.44" y="317.5"/>
 </instances>
 <busses>
 </busses>
@@ -4306,14 +4303,8 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <wire x1="193.04" y1="312.42" x2="200.66" y2="312.42" width="0.1524" layer="91"/>
 <wire x1="200.66" y1="312.42" x2="205.74" y2="312.42" width="0.1524" layer="91"/>
 <wire x1="205.74" y1="312.42" x2="205.74" y2="309.88" width="0.1524" layer="91"/>
-<pinref part="PS1" gate="G$1" pin="VIN"/>
-<wire x1="205.74" y1="312.42" x2="210.82" y2="312.42" width="0.1524" layer="91"/>
 <junction x="205.74" y="312.42"/>
-<pinref part="PS1" gate="G$1" pin="EN"/>
-<wire x1="210.82" y1="312.42" x2="215.9" y2="312.42" width="0.1524" layer="91"/>
-<wire x1="215.9" y1="307.34" x2="210.82" y2="307.34" width="0.1524" layer="91"/>
-<wire x1="210.82" y1="307.34" x2="210.82" y2="312.42" width="0.1524" layer="91"/>
-<junction x="210.82" y="312.42"/>
+<wire x1="205.74" y1="312.42" x2="218.44" y2="312.42" width="0.1524" layer="91"/>
 <pinref part="C11" gate="G$1" pin="1"/>
 <wire x1="200.66" y1="307.34" x2="200.66" y2="312.42" width="0.1524" layer="91"/>
 <junction x="200.66" y="312.42"/>
@@ -4332,6 +4323,7 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <junction x="160.02" y="312.42"/>
 <label x="191.008" y="315.976" size="0.8128" layer="95"/>
 <pinref part="C12" gate="G$1" pin="+"/>
+<pinref part="IC1" gate="G$1" pin="INPUT"/>
 </segment>
 <segment>
 <pinref part="K1" gate="G$1" pin="COIL_2"/>
@@ -4389,26 +4381,26 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 <wire x1="152.4" y1="213.36" x2="152.4" y2="215.9" width="0.1524" layer="91"/>
 </segment>
 <segment>
-<pinref part="PS1" gate="G$1" pin="GND"/>
 <pinref part="U$5" gate="G$1" pin="GND"/>
-<wire x1="215.9" y1="309.88" x2="213.36" y2="309.88" width="0.1524" layer="91"/>
-<wire x1="213.36" y1="309.88" x2="213.36" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="213.36" y1="317.5" x2="213.36" y2="292.1" width="0.1524" layer="91"/>
+<pinref part="IC1" gate="G$1" pin="GND"/>
+<wire x1="213.36" y1="317.5" x2="218.44" y2="317.5" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="U$8" gate="G$1" pin="GND"/>
 <pinref part="C4" gate="G$1" pin="-"/>
-<wire x1="256.54" y1="294.64" x2="256.54" y2="292.1" width="0.1524" layer="91"/>
-<wire x1="256.54" y1="292.1" x2="256.54" y2="289.56" width="0.1524" layer="91"/>
-<wire x1="264.16" y1="297.18" x2="264.16" y2="292.1" width="0.1524" layer="91"/>
-<wire x1="264.16" y1="292.1" x2="256.54" y2="292.1" width="0.1524" layer="91"/>
-<junction x="256.54" y="292.1"/>
+<wire x1="269.24" y1="294.64" x2="269.24" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="269.24" y1="292.1" x2="269.24" y2="289.56" width="0.1524" layer="91"/>
+<wire x1="276.86" y1="297.18" x2="276.86" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="276.86" y1="292.1" x2="269.24" y2="292.1" width="0.1524" layer="91"/>
+<junction x="269.24" y="292.1"/>
 <pinref part="C8" gate="G$1" pin="2"/>
-<wire x1="264.16" y1="292.1" x2="270.256" y2="292.1" width="0.1524" layer="91"/>
-<wire x1="270.256" y1="292.1" x2="270.256" y2="297.18" width="0.1524" layer="91"/>
-<junction x="264.16" y="292.1"/>
+<wire x1="276.86" y1="292.1" x2="282.956" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="282.956" y1="292.1" x2="282.956" y2="297.18" width="0.1524" layer="91"/>
+<junction x="276.86" y="292.1"/>
 <pinref part="C2" gate="G$1" pin="-"/>
-<wire x1="248.92" y1="294.64" x2="248.92" y2="292.1" width="0.1524" layer="91"/>
-<wire x1="248.92" y1="292.1" x2="256.54" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="261.62" y1="294.64" x2="261.62" y2="292.1" width="0.1524" layer="91"/>
+<wire x1="261.62" y1="292.1" x2="269.24" y2="292.1" width="0.1524" layer="91"/>
 <pinref part="C5" gate="G$1" pin="2"/>
 </segment>
 <segment>
@@ -4830,26 +4822,33 @@ Source: &lt;a href="http://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/AB
 </net>
 <net name="VCC3V3" class="0">
 <segment>
-<pinref part="PS1" gate="G$1" pin="VOUT"/>
 <pinref part="C4" gate="G$1" pin="+"/>
-<wire x1="243.84" y1="309.88" x2="248.92" y2="309.88" width="0.1524" layer="91"/>
-<wire x1="248.92" y1="309.88" x2="256.54" y2="309.88" width="0.1524" layer="91"/>
-<wire x1="256.54" y1="309.88" x2="256.54" y2="307.34" width="0.1524" layer="91"/>
-<wire x1="256.54" y1="309.88" x2="264.16" y2="309.88" width="0.1524" layer="91"/>
-<junction x="256.54" y="309.88"/>
-<label x="266.7" y="310.388" size="0.8128" layer="95"/>
-<label x="276.86" y="310.134" size="0.8128" layer="95"/>
-<wire x1="264.16" y1="309.88" x2="270.256" y2="309.88" width="0.1524" layer="91"/>
-<wire x1="270.256" y1="309.88" x2="287.02" y2="309.88" width="0.1524" layer="91"/>
-<wire x1="264.16" y1="304.8" x2="264.16" y2="309.88" width="0.1524" layer="91"/>
-<junction x="264.16" y="309.88"/>
+<wire x1="261.62" y1="309.88" x2="269.24" y2="309.88" width="0.1524" layer="91"/>
+<wire x1="269.24" y1="309.88" x2="269.24" y2="307.34" width="0.1524" layer="91"/>
+<wire x1="269.24" y1="309.88" x2="276.86" y2="309.88" width="0.1524" layer="91"/>
+<junction x="269.24" y="309.88"/>
+<label x="279.4" y="310.388" size="0.8128" layer="95"/>
+<label x="289.56" y="310.134" size="0.8128" layer="95"/>
+<wire x1="276.86" y1="309.88" x2="282.956" y2="309.88" width="0.1524" layer="91"/>
+<wire x1="282.956" y1="309.88" x2="299.72" y2="309.88" width="0.1524" layer="91"/>
+<wire x1="276.86" y1="304.8" x2="276.86" y2="309.88" width="0.1524" layer="91"/>
+<junction x="276.86" y="309.88"/>
 <pinref part="C8" gate="G$1" pin="1"/>
-<wire x1="270.256" y1="304.8" x2="270.256" y2="309.88" width="0.1524" layer="91"/>
-<junction x="270.256" y="309.88"/>
+<wire x1="282.956" y1="304.8" x2="282.956" y2="309.88" width="0.1524" layer="91"/>
+<junction x="282.956" y="309.88"/>
 <pinref part="C2" gate="G$1" pin="+"/>
-<wire x1="248.92" y1="307.34" x2="248.92" y2="309.88" width="0.1524" layer="91"/>
-<junction x="248.92" y="309.88"/>
+<wire x1="261.62" y1="307.34" x2="261.62" y2="309.88" width="0.1524" layer="91"/>
+<junction x="261.62" y="309.88"/>
 <pinref part="C5" gate="G$1" pin="1"/>
+<pinref part="IC1" gate="G$1" pin="OUTPUT_1"/>
+<wire x1="218.44" y1="314.96" x2="215.9" y2="314.96" width="0.1524" layer="91"/>
+<wire x1="215.9" y1="314.96" x2="215.9" y2="322.58" width="0.1524" layer="91"/>
+<wire x1="215.9" y1="322.58" x2="261.62" y2="322.58" width="0.1524" layer="91"/>
+<wire x1="261.62" y1="322.58" x2="261.62" y2="317.5" width="0.1524" layer="91"/>
+<pinref part="IC1" gate="G$1" pin="OUTPUT_2"/>
+<wire x1="261.62" y1="317.5" x2="256.54" y2="317.5" width="0.1524" layer="91"/>
+<wire x1="261.62" y1="317.5" x2="261.62" y2="309.88" width="0.1524" layer="91"/>
+<junction x="261.62" y="317.5"/>
 </segment>
 <segment>
 <pinref part="SV1" gate="G$1" pin="3"/>
