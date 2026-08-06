@@ -4967,9 +4967,9 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <label x="150.622" y="175.514" size="0.8128" layer="95" font="vector"/>
 </segment>
 <segment>
-<pinref part="IC2" gate="G$1" pin="IO21"/>
-<wire x1="68.58" y1="96.52" x2="76.2" y2="96.52" width="0.1524" layer="91"/>
-<label x="71.374" y="96.774" size="0.8128" layer="95"/>
+<pinref part="IC2" gate="G$1" pin="IO18"/>
+<wire x1="68.58" y1="104.14" x2="76.2" y2="104.14" width="0.1524" layer="91"/>
+<label x="71.628" y="104.394" size="0.8128" layer="95" font="vector"/>
 </segment>
 </net>
 <net name="N$20" class="0">
@@ -5014,11 +5014,6 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 </net>
 <net name="DQ2" class="0">
 <segment>
-<pinref part="IC2" gate="G$1" pin="IO18"/>
-<wire x1="68.58" y1="104.14" x2="76.2" y2="104.14" width="0.1524" layer="91"/>
-<label x="71.628" y="104.394" size="0.8128" layer="95" font="vector"/>
-</segment>
-<segment>
 <pinref part="SV2" gate="G$1" pin="2"/>
 <wire x1="200.66" y1="190.5" x2="187.96" y2="190.5" width="0.1524" layer="91"/>
 <label x="182.88" y="190.754" size="0.8128" layer="95"/>
@@ -5026,6 +5021,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <wire x1="187.96" y1="190.5" x2="182.88" y2="190.5" width="0.1524" layer="91"/>
 <wire x1="187.96" y1="193.04" x2="187.96" y2="190.5" width="0.1524" layer="91"/>
 <junction x="187.96" y="190.5"/>
+</segment>
+<segment>
+<pinref part="IC2" gate="G$1" pin="IO21"/>
+<wire x1="68.58" y1="96.52" x2="76.2" y2="96.52" width="0.1524" layer="91"/>
+<label x="71.374" y="96.774" size="0.8128" layer="95"/>
 </segment>
 </net>
 </nets>
