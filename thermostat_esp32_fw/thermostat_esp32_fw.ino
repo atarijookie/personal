@@ -41,6 +41,24 @@ DallasTemperature sensorIn(&oneWireIn);
 enum Error {ERROR_ESP, ERROR_TEMP_IN, ERROR_TEMP_OUT};
 enum Action {ACTION_NOOP, ACTION_COOL, ACTION_HEAT};
 
+bool fanIsOn = false;
+bool heaterIsOn = false;
+
+void fanSwitch(bool on)
+{
+  digitalWrite(PIN_RELAY_FAN, on ? HIGH : LOW);
+  fanIsOn = on;
+
+  Serial.print("Fan switched ");
+  Serial.println(on ? "ON" : "OFF");
+}
+
+void heaterSwitch(bool on)
+{
+  digitalWrite(PIN_RELAY_HEATER, on ? HIGH : LOW);
+  heaterIsOn = on;
+}
+
 void setup() {
   uint32_t start = millis();
   Serial.begin(115200);
@@ -54,11 +72,14 @@ void setup() {
     digitalWrite(pins[i], LOW);
   }
 
+  fanSwitch(false);
+  heaterSwitch(false);
+
+  sensorOut.begin();
+  sensorIn.begin();
+
   sensorOut.setResolution(10);    // Set 10-bit resolution (0.25 °C step, 187.5ms conversion)
   sensorIn.setResolution(10);     // Set 10-bit resolution (0.25 °C step, 187.5ms conversion)
-
-  // Use the internal hardware noise for a better seed
-  randomSeed(analogRead(0));
 
   Serial.println("Config display");
   max7219.Begin();  // initialize display
@@ -103,7 +124,7 @@ void setup() {
 
 void reportViaEspNow(float tempIn, float tempOut, char action)
 {
-  const uint32_t packetRandomId = ((uint32_t)random(0xFFFF) << 16) | (uint32_t)random(0xFFFF);
+  uint32_t packetRandomId = esp_random();
 
   Serial.println("create payload");
 
@@ -138,13 +159,13 @@ void reportViaEspNow(float tempIn, float tempOut, char action)
       Serial.print(" err=");
       Serial.println((int)err);
     }
-    delay(20); // give the radio a moment to switch channels
+    delay(100); // give the radio a moment to switch channels
 
     // Broadcast MAC
     esp_now_send(espNowBroadcastMac, reinterpret_cast<const uint8_t*>(payload), payloadLen);
 
     // Small visible pacing
-    delay(10);
+    delay(100);
   }
 }
 
@@ -161,8 +182,8 @@ void showError(Error errorNo)
   }
 
   // on error, both turn relays off
-  digitalWrite(PIN_RELAY_HEATER, LOW);
-  digitalWrite(PIN_RELAY_FAN, LOW);
+  fanSwitch(false);
+  heaterSwitch(false);
 }
 
 void showTempsAndAction(float tempIn, float tempOut, char action)
@@ -170,11 +191,11 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
   char buf[9]; // 8 display characters + 1 null terminator (\0)
 
   Serial.print("temp in:");
-  sprintf(buf, "%.1f", tempIn);
+  snprintf(buf, sizeof(buf), "%.1f", tempIn);
   Serial.println(buf);
 
   Serial.print("temp out:");
-  sprintf(buf, "%.1f", tempOut);
+  snprintf(buf, sizeof(buf), "%.1f", tempOut);
   Serial.println(buf);
 
   Serial.print("action:");
@@ -182,7 +203,7 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
 
   max7219.Clear();
 
-  sprintf(buf, "%3d %3d%c", (int)round(tempIn), (int)round(tempOut), action);
+  snprintf(buf, sizeof(buf), "%3d %3d%c", (int)round(tempIn), (int)round(tempOut), action);
   max7219.DisplayText(buf, LEFT);
 
   Serial.print("display:");
@@ -191,12 +212,11 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
 
 void handleFan(Action action)
 {
-  static bool fanIsOn = false;          // Track physical pin state
   static uint32_t lastToggleMs = 0;     // Timestamp of LAST STATE CHANGE
 
   // allow immediate activation at boot
   if (lastToggleMs == 0) {
-    lastToggleMs = millis() - 30000; 
+    lastToggleMs = millis() - 30000;
   }
 
   // ignore request if fan is already in the requested state
@@ -213,87 +233,90 @@ void handleFan(Action action)
   // apply state change and record timestamp
 
   if(action == ACTION_COOL) {
-    digitalWrite(PIN_RELAY_FAN, HIGH);
-    fanIsOn = true;
-    Serial.println("Fan switched ON");
+    fanSwitch(true);
   } else {
-    digitalWrite(PIN_RELAY_FAN, LOW);
-    fanIsOn = false;
+    fanSwitch(false);
     Serial.println("Fan switched OFF");
   }
 }
 
 #define REPORT_INTERVAL_MS      (15 * 60 * 1000)
 
-void loop() {
-  Serial.println("main start");
+uint32_t lastMs = 0;
+uint32_t lastReportMs = 0;
 
-  uint32_t lastMs = millis();
-  uint32_t lastReportMs = millis() - REPORT_INTERVAL_MS;
-
-  while(1) {
-    uint32_t now = millis();
-    uint32_t diff = now - lastMs;
-
-    if(diff < 1000) {                 // less than second ago? do nothing
-      continue;
-    }
-
+void loop()
+{
+  if(lastMs == 0) {
     lastMs = millis();
-
-    sensorIn.requestTemperatures();   // Synchronous call (blocks for ~187ms at 10-bit)
-    sensorOut.requestTemperatures();  // Synchronous call (blocks for ~187ms at 10-bit)
-  
-    float tempIn = sensorIn.getTempCByIndex(0);
-    float tempOut = sensorOut.getTempCByIndex(0);
-
-    if(tempIn < -30 || tempIn > 60) {     // temp seems wrong? show error, do nothing
-      showError(ERROR_TEMP_IN);
-      continue;
-    }
-
-    if(tempOut < -30 || tempOut > 60) {   // temp seems wrong? show error, do nothing
-      showError(ERROR_TEMP_OUT);
-      continue;
-    }
-
-    // decide on action that needs to be taken
-    Action action = ACTION_NOOP;
-    char actionChar = ' ';
-
-    if(tempIn < 5.0) {              // inside temperature too low? turn on heating
-      action = ACTION_HEAT;
-      actionChar = 'H';
-    } else if(tempIn > 35.0) {      // inside temperature too high?
-
-      if(tempOut < tempIn) {        // outside is cooler than inside? we can cool now
-        action = ACTION_COOL;
-        actionChar = 'C';
-      }
-      // if outside is hotter than inside, do nothing, no point of blowing hot air inside the cooler box
-    }
-
-    // turn on heater if needed, also immediatelly turn off fan
-    if(action == ACTION_HEAT) {
-      digitalWrite(PIN_RELAY_HEATER, HIGH);
-      digitalWrite(PIN_RELAY_FAN, LOW);
-    } else {    // not heating, turn off heater
-      digitalWrite(PIN_RELAY_HEATER, LOW);
-    }
-
-    // turn on fan if should cool down, with 30 seconds dwell time
-    handleFan(action);
-
-    // report state via esp-now every now and then
-    diff = now - lastReportMs;
-    if(diff >= REPORT_INTERVAL_MS) {
-      lastReportMs = now;
-      reportViaEspNow(tempIn, tempOut, actionChar);
-    }
-
-    // update display with temps and action
-    showTempsAndAction(tempIn, tempOut, action);
   }
+
+  if(lastReportMs == 0) {
+    lastReportMs = millis() - REPORT_INTERVAL_MS;
+  }
+
+  uint32_t now = millis();
+  uint32_t diff = now - lastMs;
+
+  if(diff < 1000) {                 // less than second ago? do nothing
+    delay(100);
+    return;
+  }
+
+  lastMs = millis();
+
+  sensorIn.requestTemperatures();   // Synchronous call (blocks for ~187ms at 10-bit)
+  sensorOut.requestTemperatures();  // Synchronous call (blocks for ~187ms at 10-bit)
+
+  float tempIn = sensorIn.getTempCByIndex(0);
+  float tempOut = sensorOut.getTempCByIndex(0);
+
+  if(tempIn < -30 || tempIn > 60) {     // temp seems wrong? show error, do nothing
+    showError(ERROR_TEMP_IN);
+    return;
+  }
+
+  if(tempOut < -30 || tempOut > 60) {   // temp seems wrong? show error, do nothing
+    showError(ERROR_TEMP_OUT);
+    return;
+  }
+
+  // decide on action that needs to be taken
+  Action action = ACTION_NOOP;
+  char actionChar = ' ';
+
+  if(tempIn < 5.0) {              // inside temperature too low? turn on heating
+    action = ACTION_HEAT;
+    actionChar = 'H';
+  } else if(tempIn > 35.0) {      // inside temperature too high?
+
+    if(tempOut < tempIn) {        // outside is cooler than inside? we can cool now
+      action = ACTION_COOL;
+      actionChar = 'C';
+    }
+    // if outside is hotter than inside, do nothing, no point of blowing hot air inside the cooler box
+  }
+
+  // turn on heater if needed, also immediatelly turn off fan
+  if(action == ACTION_HEAT) {
+    heaterSwitch(true);
+    fanSwitch(false);
+  } else {    // not heating, turn off heater
+    heaterSwitch(false);
+  }
+
+  // turn on fan if should cool down, with 30 seconds dwell time
+  handleFan(action);
+
+  // report state via esp-now every now and then
+  diff = now - lastReportMs;
+  if(diff >= REPORT_INTERVAL_MS) {
+    lastReportMs = now;
+    reportViaEspNow(tempIn, tempOut, actionChar);
+  }
+
+  // update display with temps and action
+  showTempsAndAction(tempIn, tempOut, action);
 }
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status)
