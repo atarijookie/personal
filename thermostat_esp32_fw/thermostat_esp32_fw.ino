@@ -20,10 +20,17 @@ static const uint8_t PIN_DQ_IN = 21;          // thermometer INSIDE the box
 static const uint8_t PIN_RELAY_FAN = 17;      // set to H to turn on the fan
 static const uint8_t PIN_RELAY_HEATER = 19;   // set to H to turn on the heater
 
-// MAX7219 display connection
-static const uint8_t PIN_CLK = 18;
-static const uint8_t PIN_CS = 22;
-static const uint8_t PIN_DIN = 23;
+#define LEFT  0
+#define RIGHT 1
+
+// Define actual ESP32 pins for MAX7219 first
+#define MAX_CLK 18
+#define MAX_CS  22
+#define MAX_DIN 23
+
+// then include the header
+#include <max7219.h>
+MAX7219 max7219;
 
 OneWire oneWireOut(PIN_DQ_OUT);
 OneWire oneWireIn(PIN_DQ_IN);
@@ -40,9 +47,9 @@ void setup() {
 
   Serial.println("Config pins");
 
-  uint8_t pins[5] = {PIN_RELAY_FAN, PIN_RELAY_HEATER, PIN_CLK, PIN_CS, PIN_DIN};
+  uint8_t pins[2] = {PIN_RELAY_FAN, PIN_RELAY_HEATER};
 
-  for(int i=0; i<5; i++) {
+  for(int i=0; i<2; i++) {
     pinMode(pins[i], OUTPUT);
     digitalWrite(pins[i], LOW);
   }
@@ -52,6 +59,11 @@ void setup() {
 
   // Use the internal hardware noise for a better seed
   randomSeed(analogRead(0));
+
+  Serial.println("Config display");
+  max7219.Begin();  // initialize display
+  max7219.Clear();
+  max7219.DisplayText("BOOt", LEFT);
 
   Serial.println("Config wifi");
 
@@ -139,11 +151,42 @@ void reportViaEspNow(float tempIn, float tempOut, char action)
 void showError(Error errorNo)
 {
   // show error message on display
-  // TODO:
+  max7219.Clear();
+
+  switch(errorNo) {
+    case ERROR_ESP:       max7219.DisplayText("Err ESP", LEFT); break;
+    case ERROR_TEMP_IN:   max7219.DisplayText("Err Tin", LEFT); break;
+    case ERROR_TEMP_OUT:  max7219.DisplayText("Err Tout", LEFT); break;
+    default:              max7219.DisplayText("Err", LEFT); break;
+  }
 
   // on error, both turn relays off
   digitalWrite(PIN_RELAY_HEATER, LOW);
   digitalWrite(PIN_RELAY_FAN, LOW);
+}
+
+void showTempsAndAction(float tempIn, float tempOut, char action)
+{
+  char buf[9]; // 8 display characters + 1 null terminator (\0)
+
+  Serial.print("temp in:");
+  sprintf(buf, "%.1f", tempIn);
+  Serial.println(buf);
+
+  Serial.print("temp out:");
+  sprintf(buf, "%.1f", tempOut);
+  Serial.println(buf);
+
+  Serial.print("action:");
+  Serial.println(action);
+
+  max7219.Clear();
+
+  sprintf(buf, "%3d %3d%c", (int)round(tempIn), (int)round(tempOut), action);
+  max7219.DisplayText(buf, LEFT);
+
+  Serial.print("display:");
+  Serial.println(buf);
 }
 
 void handleFan(Action action)
@@ -216,7 +259,7 @@ void loop() {
 
     // decide on action that needs to be taken
     Action action = ACTION_NOOP;
-    char actionChar = '-';
+    char actionChar = ' ';
 
     if(tempIn < 5.0) {              // inside temperature too low? turn on heating
       action = ACTION_HEAT;
@@ -248,7 +291,8 @@ void loop() {
       reportViaEspNow(tempIn, tempOut, actionChar);
     }
 
-    // TODO: update display with temps and action
+    // update display with temps and action
+    showTempsAndAction(tempIn, tempOut, action);
   }
 }
 
