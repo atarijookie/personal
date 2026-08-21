@@ -4127,7 +4127,7 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <part name="R10" library="microbuilder" deviceset="RESISTOR" device="_0603" value="10k"/>
 <part name="U$3" library="microbuilder" deviceset="GND" device=""/>
 <part name="U$9" library="microbuilder" deviceset="GND" device=""/>
-<part name="R11" library="microbuilder" deviceset="RESISTOR" device="_0603" value="120 R"/>
+<part name="R11" library="microbuilder" deviceset="RESISTOR" device="_0603" value="0 R"/>
 <part name="J2" library="TB-5.08-P-2P_BL" deviceset="TB-5.08-P-2P_BL" device="">
 <attribute name="DESCRIPTION" value="PCB terminal block; angled 90; 5.08mm; ways: 2; on PCBs; 1.5mm2"/>
 <attribute name="HEIGHT" value="10mm"/>
@@ -4145,7 +4145,7 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <part name="R15" library="microbuilder" deviceset="RESISTOR" device="_0603" value="10k"/>
 <part name="U$14" library="microbuilder" deviceset="GND" device=""/>
 <part name="U$15" library="microbuilder" deviceset="GND" device=""/>
-<part name="R16" library="microbuilder" deviceset="RESISTOR" device="_0603" value="120 R"/>
+<part name="R16" library="microbuilder" deviceset="RESISTOR" device="_0603" value="0 R"/>
 <part name="J3" library="TB-5.08-P-2P_BL" deviceset="TB-5.08-P-2P_BL" device="">
 <attribute name="DESCRIPTION" value="PCB terminal block; angled 90; 5.08mm; ways: 2; on PCBs; 1.5mm2"/>
 <attribute name="HEIGHT" value="10mm"/>

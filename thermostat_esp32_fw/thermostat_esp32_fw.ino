@@ -7,7 +7,7 @@
 #include <DallasTemperature.h>
 
 // ESP-NOW sender configuration
-static const int thisDeviceId = 5;
+static const int thisDeviceId = 5;    // will use this id for inside-the-box-temperature and also id+1 for outside-temperature
 static const uint8_t espNowBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status);
@@ -23,12 +23,17 @@ static const uint8_t PIN_RELAY_HEATER = 19;   // set to H to turn on the heater
 #define LEFT  0
 #define RIGHT 1
 
-// Define actual ESP32 pins for MAX7219 first
+/*
+  IMPORTANT! If your esp32 fails to boot, you should edit the max7219.h file
+  and replace the existing definitions of MAX_CLK, MAX_CS, MAX_DIN with these below,
+  because using GPIO12 makes the code freeze.
+*/
+
+// Define actual ESP32 pins for MAX7219
 #define MAX_CLK 18
 #define MAX_CS  22
 #define MAX_DIN 23
 
-// then include the header
 #include <max7219.h>
 MAX7219 max7219;
 
@@ -66,6 +71,9 @@ void heaterSwitch(bool on)
 {
   digitalWrite(PIN_RELAY_HEATER, on ? HIGH : LOW);
   heaterIsOn = on;
+
+  Serial.print("Heater switched ");
+  Serial.println(on ? "ON" : "OFF");
 }
 
 void setup() {
@@ -131,22 +139,8 @@ void setup() {
   uint32_t end = millis();
 }
 
-// report state via esp-now every now and then
-void reportViaEspNow(float tempIn, float tempOut, char action)
+void reportViaEspNow_internal(int deviceId, float temperature, char action)
 {
-  static uint32_t lastMs = 0;
-  uint32_t now = millis();
-
-  if(lastMs == 0) {               // not initialized? initialize to past value to send right after turning on
-    lastMs = now - REPORT_INTERVAL_MS;
-  }
-
-  uint32_t diff = now - lastMs;
-  if(diff < REPORT_INTERVAL_MS) {       // too short after last report? quit
-    return;
-  }
-  lastMs = now;
-
   uint32_t packetRandomId = esp_random();
 
   Serial.println("create payload");
@@ -155,12 +149,9 @@ void reportViaEspNow(float tempIn, float tempOut, char action)
   char payload[250];
 
   snprintf(payload, sizeof(payload),
-          "{\"type\":\"temp_sensor\",\"dev_id\":%d,\"packet_id\":%08lu,\"temp\":%.1f,\"temp_out\":%.1f,\"action\":\"%c\"}\n",
-          thisDeviceId,
-          (unsigned long) packetRandomId,
-          (double) tempIn,
-          (double) tempOut,
-          action);
+          "{\"type\":\"temp_sensor\",\"dev_id\":%d,\"packet_id\":%08lu,\"temp\":%.1f,\"action\":\"%c\"}\n\r",
+          deviceId, (unsigned long) packetRandomId, (double) temperature , action
+        );
 
   Serial.print("payload: ");
   Serial.println(payload);
@@ -192,6 +183,26 @@ void reportViaEspNow(float tempIn, float tempOut, char action)
   }
 }
 
+// report state via esp-now every now and then
+void reportViaEspNow(float tempIn, float tempOut, char action)
+{
+  static uint32_t lastMs = 0;
+  uint32_t now = millis();
+
+  if(lastMs == 0) {               // not initialized? initialize to past value to send right after turning on
+    lastMs = now - REPORT_INTERVAL_MS;
+  }
+
+  uint32_t diff = now - lastMs;
+  if(diff < REPORT_INTERVAL_MS) {       // too short after last report? quit
+    return;
+  }
+  lastMs = now;
+
+  reportViaEspNow_internal(thisDeviceId    , tempIn , action);  // send inside  temperature with  thisDeviceId
+  reportViaEspNow_internal(thisDeviceId + 1, tempOut, action);  // send outside temperature with (thisDeviceId + 1)
+}
+
 void showError(Error errorNo)
 {
   // show error message on display
@@ -211,25 +222,30 @@ void showError(Error errorNo)
 
 void showTempsAndAction(float tempIn, float tempOut, char action)
 {
-  char buf[9]; // 8 display characters + 1 null terminator (\0)
+  char buf[16];
 
-  Serial.print("temp in:");
+  Serial.print("temp in: ");
   snprintf(buf, sizeof(buf), "%.1f", tempIn);
-  Serial.println(buf);
+  Serial.print(buf);
 
-  Serial.print("temp out:");
+  Serial.print(", out: ");
   snprintf(buf, sizeof(buf), "%.1f", tempOut);
-  Serial.println(buf);
+  Serial.print(buf);
 
-  Serial.print("action:");
+  Serial.print(", action: ");
   Serial.println(action);
 
   max7219.Clear();
 
-  snprintf(buf, sizeof(buf), "%3d %3d%c", (int)round(tempIn), (int)round(tempOut), action);
+  snprintf(buf, 12, "%5.1f%5.1f", tempIn, tempOut);
+
+  if(action != ' ') {   // action was specified, replace 0th character with action (possibly minus sign)
+      buf[0] = action;
+  }
+
   max7219.DisplayText(buf, LEFT);
 
-  Serial.print("display:");
+  Serial.print("display: ");
   Serial.println(buf);
 }
 
@@ -245,9 +261,16 @@ char handleHeatingCooling(float tempIn, float tempOut)
 
   uint32_t diff = now - lastMs;
   if(diff < HEAT_COOL_INTERVAL_MS) {      // too short after last change? quit
+    Serial.print("no action change, diff: ");
+    Serial.print(diff);
+    Serial.print(" < ");
+    Serial.println(HEAT_COOL_INTERVAL_MS);
+
     return lastActionChar;
   }
   lastMs = now;
+
+  Serial.println("WILL CONSIDER ACTION NOW");
 
   // decide on action that needs to be taken
   Action action = ACTION_NOOP;
