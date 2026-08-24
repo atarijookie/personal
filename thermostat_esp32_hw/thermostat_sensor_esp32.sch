@@ -2090,6 +2090,20 @@ Source: &lt;a href="https://www.tme.eu/html/EN/pcb-mount-terminal-blocks-5-00-5-
 <wire x1="-7.62" y1="0" x2="-1.7" y2="0" width="0.127" layer="21"/>
 <wire x1="20.32" y1="0" x2="14.8" y2="0" width="0.127" layer="21"/>
 </package>
+<package name="ORP_PROBE">
+<wire x1="39.4" y1="56.8" x2="0" y2="56.8" width="0.127" layer="21"/>
+<wire x1="0" y1="56.8" x2="0" y2="0" width="0.127" layer="21"/>
+<wire x1="0" y1="0" x2="39.4" y2="0" width="0.127" layer="21"/>
+<wire x1="39.4" y1="0" x2="39.4" y2="56.8" width="0.127" layer="21"/>
+<hole x="4.60875" y="4.60375" drill="3.5"/>
+<hole x="34.6125" y="4.60375" drill="3.5"/>
+<hole x="34.6125" y="52.22875" drill="3.5"/>
+<pad name="GND" x="17.46" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="SCL" x="20" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="SDA" x="22.54" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="VCC3V3" x="25.08" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="VCC5V" x="27.62" y="53.82" drill="0.8" shape="long" rot="R90"/>
+</package>
 </packages>
 <symbols>
 <symbol name="PDM-10-05M">
@@ -2115,6 +2129,17 @@ Source: &lt;a href="https://www.tme.eu/html/EN/pcb-mount-terminal-blocks-5-00-5-
 <wire x1="5.08" y1="-2.54" x2="-5.08" y2="-2.54" width="0.254" layer="94"/>
 <wire x1="-5.08" y1="-2.54" x2="-5.08" y2="2.54" width="0.254" layer="94"/>
 </symbol>
+<symbol name="ORP_PROBE">
+<pin name="VCC5V" x="5.08" y="5.08" length="middle" rot="R180"/>
+<pin name="VCC3V3" x="5.08" y="2.54" length="middle" rot="R180"/>
+<pin name="SDA" x="5.08" y="0" length="middle" rot="R180"/>
+<pin name="SCL" x="5.08" y="-2.54" length="middle" rot="R180"/>
+<pin name="GND" x="5.08" y="-5.08" length="middle" rot="R180"/>
+<wire x1="2.54" y1="7.62" x2="2.54" y2="-7.62" width="0.254" layer="94"/>
+<wire x1="2.54" y1="-7.62" x2="7.62" y2="-7.62" width="0.254" layer="94"/>
+<wire x1="7.62" y1="-7.62" x2="7.62" y2="7.62" width="0.254" layer="94"/>
+<wire x1="7.62" y1="7.62" x2="2.54" y2="7.62" width="0.254" layer="94"/>
+</symbol>
 </symbols>
 <devicesets>
 <deviceset name="PDM-10-05M">
@@ -2124,8 +2149,8 @@ Source: &lt;a href="https://www.tme.eu/html/EN/pcb-mount-terminal-blocks-5-00-5-
 <devices>
 <device name="" package="PDM-10-05M">
 <connects>
-<connect gate="G$1" pin="P$1" pad="P1"/>
-<connect gate="G$1" pin="P$2" pad="P2"/>
+<connect gate="G$1" pin="P$1" pad="P2"/>
+<connect gate="G$1" pin="P$2" pad="P1"/>
 <connect gate="G$1" pin="P$3" pad="P3"/>
 <connect gate="G$1" pin="P$4" pad="P4"/>
 </connects>
@@ -2144,6 +2169,25 @@ Source: &lt;a href="https://www.tme.eu/html/EN/pcb-mount-terminal-blocks-5-00-5-
 <connects>
 <connect gate="G$1" pin="P$1" pad="P$1"/>
 <connect gate="G$1" pin="P$2" pad="P$2"/>
+</connects>
+<technologies>
+<technology name=""/>
+</technologies>
+</device>
+</devices>
+</deviceset>
+<deviceset name="ORP_PROBE">
+<gates>
+<gate name="G$1" symbol="ORP_PROBE" x="-5.08" y="0"/>
+</gates>
+<devices>
+<device name="" package="ORP_PROBE">
+<connects>
+<connect gate="G$1" pin="GND" pad="GND"/>
+<connect gate="G$1" pin="SCL" pad="SCL"/>
+<connect gate="G$1" pin="SDA" pad="SDA"/>
+<connect gate="G$1" pin="VCC3V3" pad="VCC3V3"/>
+<connect gate="G$1" pin="VCC5V" pad="VCC5V"/>
 </connects>
 <technologies>
 <technology name=""/>
@@ -4183,6 +4227,7 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <part name="C12" library="EEUFR1E221B" deviceset="EEUFR1E221B" device="" value="220 uF, low ESR"/>
 <part name="SV3" library="con-lstb" deviceset="MA05-1" device=""/>
 <part name="IC1" library="TLV1117LV33DCYR" deviceset="TLV1117LV33DCYR" device=""/>
+<part name="U$21" library="other" deviceset="ORP_PROBE" device=""/>
 </parts>
 <sheets>
 <sheet>
@@ -4216,6 +4261,7 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <wire x1="170.18" y1="203.2" x2="170.18" y2="261.62" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="170.18" y1="261.62" x2="111.76" y2="261.62" width="0.1524" layer="94" style="shortdash"/>
 <wire x1="170.18" y1="203.2" x2="111.76" y2="203.2" width="0.1524" layer="94" style="shortdash"/>
+<text x="231.14" y="248.92" size="1.778" layer="94">ORP probe module</text>
 </plain>
 <instances>
 <instance part="U$4" gate="G$1" x="205.74" y="289.56"/>
@@ -4288,6 +4334,7 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <instance part="C12" gate="G$1" x="149.86" y="309.88" rot="R270"/>
 <instance part="SV3" gate="G$1" x="162.56" y="180.34" rot="R180"/>
 <instance part="IC1" gate="G$1" x="218.44" y="317.5"/>
+<instance part="U$21" gate="G$1" x="238.76" y="238.76"/>
 </instances>
 <busses>
 </busses>
@@ -4356,6 +4403,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <wire x1="187.96" y1="43.18" x2="193.04" y2="43.18" width="0.1524" layer="91"/>
 <wire x1="193.04" y1="43.18" x2="193.04" y2="53.34" width="0.1524" layer="91"/>
 <label x="191.77" y="53.848" size="1.016" layer="95"/>
+</segment>
+<segment>
+<wire x1="256.54" y1="243.84" x2="243.84" y2="243.84" width="0.1524" layer="91"/>
+<label x="251.206" y="244.348" size="0.8128" layer="95"/>
+<pinref part="U$21" gate="G$1" pin="VCC5V"/>
 </segment>
 </net>
 <net name="GND" class="0">
@@ -4537,6 +4589,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <pinref part="U$13" gate="G$1" pin="GND"/>
 <wire x1="132.08" y1="182.88" x2="132.08" y2="180.34" width="0.1524" layer="91"/>
 </segment>
+<segment>
+<wire x1="256.54" y1="233.68" x2="243.84" y2="233.68" width="0.1524" layer="91"/>
+<label x="251.206" y="233.934" size="0.8128" layer="95"/>
+<pinref part="U$21" gate="G$1" pin="GND"/>
+</segment>
 </net>
 <net name="EN" class="0">
 <segment>
@@ -4681,6 +4738,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <wire x1="68.58" y1="109.22" x2="76.2" y2="109.22" width="0.1524" layer="91"/>
 <label x="71.628" y="109.474" size="0.8128" layer="95" font="vector"/>
 </segment>
+<segment>
+<wire x1="256.54" y1="238.76" x2="243.84" y2="238.76" width="0.1524" layer="91"/>
+<label x="251.206" y="239.268" size="0.8128" layer="95"/>
+<pinref part="U$21" gate="G$1" pin="SDA"/>
+</segment>
 </net>
 <net name="N$8" class="0">
 <segment>
@@ -4752,6 +4814,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <pinref part="IC2" gate="G$1" pin="IO19"/>
 <wire x1="68.58" y1="101.6" x2="76.2" y2="101.6" width="0.1524" layer="91"/>
 <label x="71.628" y="101.854" size="0.8128" layer="95" font="vector"/>
+</segment>
+<segment>
+<wire x1="256.54" y1="236.22" x2="243.84" y2="236.22" width="0.1524" layer="91"/>
+<label x="251.206" y="236.474" size="0.8128" layer="95"/>
+<pinref part="U$21" gate="G$1" pin="SCL"/>
 </segment>
 </net>
 <net name="N$13" class="0">
@@ -4923,6 +4990,11 @@ Source: &lt;a href="http://www.ti.com/lit/gpn/tlv1117lv"&gt; Datasheet &lt;/a&gt
 <pinref part="C7" gate="G$1" pin="1"/>
 <wire x1="132.08" y1="190.5" x2="132.08" y2="193.04" width="0.1524" layer="91"/>
 <label x="130.81" y="193.802" size="0.8128" layer="95" font="vector"/>
+</segment>
+<segment>
+<wire x1="256.54" y1="241.3" x2="243.84" y2="241.3" width="0.1524" layer="91"/>
+<label x="251.206" y="241.808" size="0.8128" layer="95"/>
+<pinref part="U$21" gate="G$1" pin="VCC3V3"/>
 </segment>
 </net>
 <net name="N$19" class="0">

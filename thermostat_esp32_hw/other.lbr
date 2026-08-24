@@ -52,7 +52,7 @@
 <layer number="42" name="bRestrict" color="1" fill="10" visible="yes" active="yes"/>
 <layer number="43" name="vRestrict" color="2" fill="10" visible="yes" active="yes"/>
 <layer number="44" name="Drills" color="7" fill="1" visible="no" active="yes"/>
-<layer number="45" name="Holes" color="7" fill="1" visible="no" active="yes"/>
+<layer number="45" name="Holes" color="7" fill="1" visible="yes" active="yes"/>
 <layer number="46" name="Milling" color="3" fill="1" visible="no" active="yes"/>
 <layer number="47" name="Measures" color="7" fill="1" visible="no" active="yes"/>
 <layer number="48" name="Document" color="7" fill="1" visible="yes" active="yes"/>
@@ -93,6 +93,20 @@
 <wire x1="-7.62" y1="0" x2="-1.7" y2="0" width="0.127" layer="21"/>
 <wire x1="20.32" y1="0" x2="14.8" y2="0" width="0.127" layer="21"/>
 </package>
+<package name="ORP_PROBE">
+<wire x1="39.4" y1="56.8" x2="0" y2="56.8" width="0.127" layer="21"/>
+<wire x1="0" y1="56.8" x2="0" y2="0" width="0.127" layer="21"/>
+<wire x1="0" y1="0" x2="39.4" y2="0" width="0.127" layer="21"/>
+<wire x1="39.4" y1="0" x2="39.4" y2="56.8" width="0.127" layer="21"/>
+<hole x="4.60875" y="4.60375" drill="3.5"/>
+<hole x="34.6125" y="4.60375" drill="3.5"/>
+<hole x="34.6125" y="52.22875" drill="3.5"/>
+<pad name="GND" x="17.46" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="SCL" x="20" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="SDA" x="22.54" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="VCC3V3" x="25.08" y="53.82" drill="0.8" shape="long" rot="R90"/>
+<pad name="VCC5V" x="27.62" y="53.82" drill="0.8" shape="long" rot="R90"/>
+</package>
 </packages>
 <symbols>
 <symbol name="PDM-10-05M">
@@ -118,6 +132,17 @@
 <wire x1="5.08" y1="-2.54" x2="-5.08" y2="-2.54" width="0.254" layer="94"/>
 <wire x1="-5.08" y1="-2.54" x2="-5.08" y2="2.54" width="0.254" layer="94"/>
 </symbol>
+<symbol name="ORP_PROBE">
+<pin name="VCC5V" x="5.08" y="5.08" length="middle" rot="R180"/>
+<pin name="VCC3V3" x="5.08" y="2.54" length="middle" rot="R180"/>
+<pin name="SDA" x="5.08" y="0" length="middle" rot="R180"/>
+<pin name="SCL" x="5.08" y="-2.54" length="middle" rot="R180"/>
+<pin name="GND" x="5.08" y="-5.08" length="middle" rot="R180"/>
+<wire x1="2.54" y1="7.62" x2="2.54" y2="-7.62" width="0.254" layer="94"/>
+<wire x1="2.54" y1="-7.62" x2="7.62" y2="-7.62" width="0.254" layer="94"/>
+<wire x1="7.62" y1="-7.62" x2="7.62" y2="7.62" width="0.254" layer="94"/>
+<wire x1="7.62" y1="7.62" x2="2.54" y2="7.62" width="0.254" layer="94"/>
+</symbol>
 </symbols>
 <devicesets>
 <deviceset name="PDM-10-05M">
@@ -127,8 +152,8 @@
 <devices>
 <device name="" package="PDM-10-05M">
 <connects>
-<connect gate="G$1" pin="P$1" pad="P1"/>
-<connect gate="G$1" pin="P$2" pad="P2"/>
+<connect gate="G$1" pin="P$1" pad="P2"/>
+<connect gate="G$1" pin="P$2" pad="P1"/>
 <connect gate="G$1" pin="P$3" pad="P3"/>
 <connect gate="G$1" pin="P$4" pad="P4"/>
 </connects>
@@ -147,6 +172,25 @@
 <connects>
 <connect gate="G$1" pin="P$1" pad="P$1"/>
 <connect gate="G$1" pin="P$2" pad="P$2"/>
+</connects>
+<technologies>
+<technology name=""/>
+</technologies>
+</device>
+</devices>
+</deviceset>
+<deviceset name="ORP_PROBE">
+<gates>
+<gate name="G$1" symbol="ORP_PROBE" x="-5.08" y="0"/>
+</gates>
+<devices>
+<device name="" package="ORP_PROBE">
+<connects>
+<connect gate="G$1" pin="GND" pad="GND"/>
+<connect gate="G$1" pin="SCL" pad="SCL"/>
+<connect gate="G$1" pin="SDA" pad="SDA"/>
+<connect gate="G$1" pin="VCC3V3" pad="VCC3V3"/>
+<connect gate="G$1" pin="VCC5V" pad="VCC5V"/>
 </connects>
 <technologies>
 <technology name=""/>
