@@ -184,7 +184,7 @@ void reportViaEspNow_internal(int deviceId, float temperature, char action)
 }
 
 // report state via esp-now every now and then
-void reportViaEspNow(float tempIn, float tempOut, char action)
+void reportViaEspNow(float tempIn, float tempOut, char action, bool tempOutOk)
 {
   static uint32_t lastMs = 0;
   uint32_t now = millis();
@@ -199,8 +199,13 @@ void reportViaEspNow(float tempIn, float tempOut, char action)
   }
   lastMs = now;
 
-  reportViaEspNow_internal(thisDeviceId    , tempIn , action);  // send inside  temperature with  thisDeviceId
-  reportViaEspNow_internal(thisDeviceId + 1, tempOut, action);  // send outside temperature with (thisDeviceId + 1)
+  reportViaEspNow_internal(thisDeviceId, tempIn , action);  // send inside  temperature with  thisDeviceId
+
+  if(tempOutOk) {
+    reportViaEspNow_internal(thisDeviceId + 1, tempOut, action);  // send outside temperature with (thisDeviceId + 1)
+  } else {
+    reportViaEspNow_internal(thisDeviceId + 1, 0, action);        // send error outside temperature 0C with (thisDeviceId + 1)
+  }
 }
 
 void showError(Error errorNo)
@@ -220,7 +225,7 @@ void showError(Error errorNo)
   heaterSwitch(false);
 }
 
-void showTempsAndAction(float tempIn, float tempOut, char action)
+void showTempsAndAction(float tempIn, float tempOut, char action, bool tempOutOk)
 {
   static bool everyOther = false;
   static int displayCount = 0;
@@ -235,8 +240,13 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
 
   // show out temperature in console
   Serial.print(", out: ");
-  snprintf(buf, sizeof(buf), "%.1f", tempOut);
-  Serial.print(buf);
+
+  if(tempOutOk) {
+    snprintf(buf, sizeof(buf), "%.1f", tempOut);
+    Serial.print(buf);
+  } else {
+    Serial.print("ERR!");
+  }
 
   // show action in console
   Serial.print(", action: ");
@@ -252,7 +262,11 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
   max7219.Clear();
 
   // put temperatures in buffer, starting from 1st char
-  snprintf(buf + 1, 12, "%5.1f%5.1f", tempIn, tempOut);
+  if(tempOutOk) {
+    snprintf(buf + 1, 12, "%5.1f%5.1f", tempIn, tempOut);
+  } else {
+    snprintf(buf + 1, 12, "%5.1f Err", tempIn);
+  }
 
   // if action is not blank, replace 1st char in buffer with action (possibly minus sign)
   if(action != ' ') {
@@ -276,7 +290,7 @@ void showTempsAndAction(float tempIn, float tempOut, char action)
   Serial.println("'");
 }
 
-char handleHeatingCooling(float tempIn, float tempOut)
+char handleHeatingCooling(float tempIn, float tempOut, bool tempOutOk)
 {
   static char lastActionChar = ' ';
   static uint32_t lastMs = 0;
@@ -303,7 +317,12 @@ char handleHeatingCooling(float tempIn, float tempOut)
   Action action = ACTION_NOOP;
   char actionChar = ' ';
 
-  bool fanCanCool = (tempOut < tempIn);   // fan can cool only if outside temperature is lower than inside temperature, otherwise it's not cooling
+  bool fanCanCool = false;
+  if(tempOutOk) {   // if tempOut is valid, then use it to determine if we can cool
+    fanCanCool = (tempOut < tempIn);   // fan can cool only if outside temperature is lower than inside temperature, otherwise it's not cooling
+  } else {          // if tempOut is invalid, when assume we can cool and just let the fan run when needed
+    fanCanCool = true;
+  }
 
   // nothing is on, completely idle
   if(!fanIsOn && !heaterIsOn) {
@@ -375,18 +394,19 @@ void loop()
     return;
   }
 
+  bool tempOutOk = true;
   if(tempOut < -30 || tempOut > 60) {   // temp seems wrong? show error, do nothing
-    showError(ERROR_TEMP_OUT);
-    return;
+    tempOutOk = false;
+    delay(100);
   }
 
-  char actionChar = handleHeatingCooling(tempIn, tempOut);
+  char actionChar = handleHeatingCooling(tempIn, tempOut, tempOutOk);
 
   // report state via esp-now every now and then
-  reportViaEspNow(tempIn, tempOut, actionChar);
+  reportViaEspNow(tempIn, tempOut, actionChar, tempOutOk);
 
   // update display with temps and action
-  showTempsAndAction(tempIn, tempOut, actionChar);
+  showTempsAndAction(tempIn, tempOut, actionChar, tempOutOk);
 }
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status)
