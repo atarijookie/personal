@@ -95,8 +95,8 @@ void setup() {
   sensorOut.begin();
   sensorIn.begin();
 
-  sensorOut.setResolution(10);    // Set 10-bit resolution (0.25 °C step, 187.5ms conversion)
-  sensorIn.setResolution(10);     // Set 10-bit resolution (0.25 °C step, 187.5ms conversion)
+  sensorOut.setResolution(11);    // Set 11-bit resolution (0.125 °C step, 375 ms conversion)
+  sensorIn.setResolution(11);     // Set 11-bit resolution (0.125 °C step, 375 ms conversion)
 
   Serial.println("Config display");
   max7219.Begin();  // initialize display
@@ -222,31 +222,58 @@ void showError(Error errorNo)
 
 void showTempsAndAction(float tempIn, float tempOut, char action)
 {
+  static bool everyOther = false;
+  static int displayCount = 0;
   char buf[16];
 
+  everyOther = !everyOther;
+
+  // show in temperature in console
   Serial.print("temp in: ");
   snprintf(buf, sizeof(buf), "%.1f", tempIn);
   Serial.print(buf);
 
+  // show out temperature in console
   Serial.print(", out: ");
   snprintf(buf, sizeof(buf), "%.1f", tempOut);
   Serial.print(buf);
 
+  // show action in console
   Serial.print(", action: ");
   Serial.println(action);
 
-  max7219.Clear();
-
-  snprintf(buf, 12, "%5.1f%5.1f", tempIn, tempOut);
-
-  if(action != ' ') {   // action was specified, replace 0th character with action (possibly minus sign)
-      buf[0] = action;
+  // every few seconds reinitialize display to make it work after display disconnect and reconnect
+  displayCount++;
+  if(displayCount >= 10) {
+    displayCount = 0;
+    max7219.Begin();  // initialize display
   }
 
-  max7219.DisplayText(buf, LEFT);
+  max7219.Clear();
 
-  Serial.print("display: ");
-  Serial.println(buf);
+  // put temperatures in buffer, starting from 1st char
+  snprintf(buf + 1, 12, "%5.1f%5.1f", tempIn, tempOut);
+
+  // if action is not blank, replace 1st char in buffer with action (possibly minus sign)
+  if(action != ' ') {
+      buf[1] = action;
+  }
+
+  // if this is !everyOther, then we're going to show string from 1st character
+  char* bfr = buf + 1;
+
+  // if this is everyOther, then we're going to show string from 0th character, with added '.' between 0th and 1st character
+  if(everyOther) {
+    buf[0] = buf[1];    // move action from 1st to 0th char
+    buf[1] = '.';       // 1st char becomes a dot
+    bfr = buf;          // show from 0th char
+  }
+
+  max7219.DisplayText(bfr, LEFT);
+
+  Serial.print("display: '");
+  Serial.print(bfr);
+  Serial.println("'");
 }
 
 char handleHeatingCooling(float tempIn, float tempOut)
