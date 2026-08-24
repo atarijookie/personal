@@ -17,6 +17,8 @@ static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status);
 // DS18B20 sensors
 static const uint8_t PIN_DQ = 21;             // thermometer in water
 
+#define ADS_I2C_ADDRESS   0x48
+
 // ADS1115 connection
 static const uint8_t PIN_I2C_SDA = 17;
 static const uint8_t PIN_I2C_SCL = 19;
@@ -69,7 +71,7 @@ void setup() {
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);   // Initialize I2C bus with custom pins
 
   // Pass the Wire instance and I2C address (default 0x48) to ads.begin
-  if (!ads.begin(0x48, &Wire)) {
+  if (!ads.begin(ADS_I2C_ADDRESS, &Wire)) {
     Serial.println("Failed to initialize ADS.");
     showError(ERROR_ADS);
     delay(1000);
@@ -176,7 +178,7 @@ void espNow_orp(int deviceId, int orpMiliVolts)
 }
 
 // report state via esp-now every now and then
-void reportViaEspNow(float temperature, int orpMiliVolts)
+void reportViaEspNow(float temperature, int orpMiliVolts, bool tempOk, bool adcOk)
 {
   static uint32_t lastMs = 0;
   uint32_t now = millis();
@@ -191,8 +193,13 @@ void reportViaEspNow(float temperature, int orpMiliVolts)
   }
   lastMs = now;
 
-  espNow_temperature(thisDeviceId, temperature);    // send temperature
-  espNow_orp(thisDeviceId, orpMiliVolts);           // send orp mV value
+  if(tempOk) {
+    espNow_temperature(thisDeviceId, temperature);    // send temperature
+  }
+
+  if(adcOk) {
+    espNow_orp(thisDeviceId, orpMiliVolts);           // send orp mV value
+  }
 }
 
 void showError(Error errorNo)
@@ -209,25 +216,71 @@ void showError(Error errorNo)
   }
 }
 
-void showTempAndOrp(float temperature, int orpMiliVolts)
+void showTempAndOrp(float temperature, int orpMiliVolts, bool tempOk, bool adcOk)
 {
+  static bool everyOther = false;
+  static int displayCount = 0;
   char buf[16];
 
+  // show temperature in console
   Serial.print("temp: ");
-  snprintf(buf, sizeof(buf), "%.1f", temperature);
-  Serial.print(buf);
+  if(tempOk) {
+    snprintf(buf, sizeof(buf), "%.1f", temperature);
+    Serial.print(buf);
+  } else {
+    Serial.print("ERR");
+  }
 
+  // show orp in console
   Serial.print(", orp: ");
-  snprintf(buf, sizeof(buf), "%d", orpMiliVolts);
-  Serial.println(buf);
+  if(adcOk) {
+    snprintf(buf, sizeof(buf), "%d", orpMiliVolts);
+    Serial.println(buf);
+  } else {
+    Serial.println("ERR");
+  }
 
-  snprintf(buf, 12, "%5.1f%4d", temperature, orpMiliVolts);
+  if(tempOk) {  // temperature reading was ok?
+    snprintf(buf + 1, 6, "%5.1f", temperature);
+  } else {
+    snprintf(buf + 1, 6, "TErr");
+  }
+
+  if(adcOk) {   // ADC reading was ok?
+    snprintf(buf + 6, 6, "%4d", orpMiliVolts);
+  } else {
+    snprintf(buf + 6, 6, "OErr");
+  }
+
+  // if this is !everyOther, then we're going to show string from 1st character
+  char* bfr = buf + 1;
+
+  // if this is everyOther, then we're going to show string from 0th character, with added '.' between 0th and 1st character
+  if(everyOther) {
+    buf[0] = buf[1];    // move char from 1st to 0th char
+    buf[1] = '.';       // 1st char becomes a dot
+    bfr = buf;          // show from 0th char
+  }
+
+  // every few seconds reinitialize display to make it work after display disconnect and reconnect
+  displayCount++;
+  if(displayCount >= 10) {
+    displayCount = 0;
+    max7219.Begin();  // initialize display
+  }
+
   max7219.Clear();
-  max7219.DisplayText(buf, LEFT);
+  max7219.DisplayText(bfr, LEFT);
 
   Serial.print("display: '");
-  Serial.print(buf);
+  Serial.print(bfr);
   Serial.println("'");
+}
+
+bool isAdcConnected(uint8_t address)
+{
+  Wire.beginTransmission(address);
+  return (Wire.endTransmission() == 0); // 0 means ACK (success)
 }
 
 uint32_t lastLoopMs = 0;
@@ -246,26 +299,32 @@ void loop()
   sensorIn.requestTemperatures();   // Synchronous call (blocks for ~187ms at 10-bit)
   float temperature = sensorIn.getTempCByIndex(0);
 
+  bool tempOk = true;
   if(temperature < -30 || temperature > 70) {     // temp seems wrong? show error for a while, but proceed with the rest
-    showError(ERROR_TEMP_IN);
-    delay(1000);
+    tempOk = false;
   }
 
-  // low-pass filter for stable ORP display
-  float multiplier = 0.0625f;           // ADS1115  @ 2x gain +/- 2.048V gain (16-bit results)
-  int32_t adcAccum = 0;
-  for (int i = 0; i < 5; i++) {
-      adcAccum += ads.readADC_Differential_0_1();
-      delay(5);
+  bool adcOk = isAdcConnected(ADS_I2C_ADDRESS);
+  int orpMiliVolts = 0;
+
+  if(adcOk) {
+    float multiplier = 0.0625f;           // ADS1115  @ 2x gain +/- 2.048V gain (16-bit results)
+
+    // low-pass filter for stable ORP display
+    int32_t adcAccum = 0;
+    for (int i = 0; i < 5; i++) {
+        adcAccum += ads.readADC_Differential_0_1();
+        delay(5);
+    }
+    int16_t results = adcAccum / 5;
+    orpMiliVolts = roundf(results * multiplier);
   }
-  int16_t results = adcAccum / 5;
-  int orpMiliVolts = roundf(results * multiplier);
 
   // report state via esp-now every now and then
-  reportViaEspNow(temperature, orpMiliVolts);
+  reportViaEspNow(temperature, orpMiliVolts, tempOk, adcOk);
 
   // update display with temps and action
-  showTempAndOrp(temperature, orpMiliVolts);
+  showTempAndOrp(temperature, orpMiliVolts, tempOk, adcOk);
 }
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status)
