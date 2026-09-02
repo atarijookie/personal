@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ORP settings</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+      h1 { margin: 0 0 12px 0; }
+      #status { color: #444; margin: 8px 0 16px 0; }
+      .muted { color: #666; font-size: 13px; }
+      .err { color: #b00020; }
+      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 420px; }
+      .field { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+      .field label { min-width: 110px; }
+      input[type="number"] { padding: 6px 8px; flex: 1; }
+      .btns { display: flex; gap: 12px; margin-top: 16px; }
+      button { padding: 8px 14px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
+      button:hover { background: #f0f0f0; }
+      .back { display: inline-block; margin-top: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>ORP settings</h1>
+    <div id="status" class="muted">Loading…</div>
+
+    <div class="box">
+      <div class="field">
+        <label for="orp_offset">orp offset</label>
+        <input id="orp_offset" type="number" step="any" />
+      </div>
+      <div class="field">
+        <label for="ph">pH value</label>
+        <input id="ph" type="number" step="any" />
+      </div>
+      <div class="btns">
+        <button id="save" type="button">Save</button>
+      </div>
+    </div>
+    <a href="/" class="muted back">Back</a>
+
+    <script>
+      function setStatus(text, isErr) {
+        const el = document.getElementById("status");
+        el.textContent = text;
+        el.classList.toggle("err", !!isErr);
+        el.classList.toggle("muted", !isErr);
+      }
+
+      function numOrEmpty(v) {
+        return v === null || v === undefined ? "" : String(v);
+      }
+
+      function parseNum(id) {
+        const raw = document.getElementById(id).value.trim();
+        if (raw === "") return null;
+        const n = Number(raw);
+        if (Number.isNaN(n)) throw new Error(id + " must be a number");
+        return n;
+      }
+
+      async function loadSettings() {
+        try {
+          const resp = await fetch("/api/orp_settings", { headers: { "Accept": "application/json" } });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(JSON.stringify(data));
+          document.getElementById("orp_offset").value = numOrEmpty(data.orp_offset);
+          document.getElementById("ph").value = numOrEmpty(data.ph);
+          setStatus("Loaded.");
+        } catch (e) {
+          setStatus("Failed to load settings: " + e, true);
+        }
+      }
+
+      async function saveSettings() {
+        try {
+          const body = { orp_offset: parseNum("orp_offset"), ph: parseNum("ph") };
+          const resp = await fetch("/api/orp_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(JSON.stringify(data));
+          document.getElementById("orp_offset").value = numOrEmpty(data.orp_offset);
+          document.getElementById("ph").value = numOrEmpty(data.ph);
+          setStatus("Saved.");
+        } catch (e) {
+          setStatus("Failed to save settings: " + e, true);
+        }
+      }
+
+      document.getElementById("save").addEventListener("click", saveSettings);
+
+      loadSettings();
+    </script>
+  </body>
+</html>

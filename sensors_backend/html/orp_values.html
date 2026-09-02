@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Temp daily</title>
+    <title>ORP values</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
       h1 { margin: 0 0 12px 0; }
@@ -11,10 +11,7 @@
       .device { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
       .muted { color: #666; font-size: 12px; }
       .err { color: #b00020; }
-      .panels { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
-      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 520px; min-width: 260px; flex: 1; }
-      .latest-row { justify-content: space-between; }
-      .latest-vals { white-space: nowrap; }
+      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 520px; }
       .row { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px 0; }
       input[type="date"] { padding: 6px 8px; }
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
@@ -24,7 +21,7 @@
     </style>
   </head>
   <body>
-    <h1>Temp daily</h1>
+    <h1>ORP values</h1>
     <div id="status" class="muted">Loading devices…</div>
 
     <div class="row">
@@ -35,28 +32,18 @@
       <a href="/" class="muted" style="margin-left: 10px;">Back</a>
     </div>
 
-    <div class="panels">
-      <div class="box">
-        <div class="muted" style="margin-bottom: 8px;"><b>Devices</b></div>
-        <div id="devices"></div>
-      </div>
-      <div class="box">
-        <div class="muted" style="margin-bottom: 8px;"><b>Latest</b></div>
-        <div id="latest"></div>
-      </div>
+    <div class="box">
+      <div class="muted" style="margin-bottom: 8px;"><b>Devices</b></div>
+      <div id="devices"></div>
     </div>
 
-    <h2 class="chart-section">Temperatures</h2>
-    <canvas id="chartTemp" width="980" height="378"></canvas>
-
-    <h2 class="chart-section">Humidity</h2>
-    <canvas id="chartHumidity" width="980" height="360"></canvas>
+    <h2 class="chart-section">ORP graph</h2>
+    <canvas id="chartOrp" width="980" height="378"></canvas>
 
     <script>
       let devicesById = new Map(); // id -> {id,name}
-      let tempDayData = null;      // response from /api/temp_day
-      let hoverTempMs = null;
-      let hoverHumMs = null;
+      let orpDayData = null;       // response from /api/orp_day
+      let hoverOrpMs = null;
 
       function todayIso() {
         const d = new Date();
@@ -84,7 +71,7 @@
         const d = isoToLocalDate(cur);
         d.setDate(d.getDate() + deltaDays);
         dayEl.value = localDateToIso(d);
-        fetchTempDay();
+        fetchOrpDay();
       }
 
       function getSelectedSensorIds() {
@@ -317,60 +304,13 @@
       }
 
       function visibleSeries() {
-        if (!tempDayData || !tempDayData.series) return [];
+        if (!orpDayData || !orpDayData.series) return [];
         const selected = new Set(getSelectedSensorIds());
-        return tempDayData.series.filter(s => selected.has(s.sensor_id));
+        return orpDayData.series.filter(s => selected.has(s.sensor_id));
       }
 
       function niceSensorLabel(s) {
         return s.name ? `${s.sensor_id} — ${s.name}` : String(s.sensor_id);
-      }
-
-      function formatLatestTemp(v) {
-        if (v === null || v === undefined) return "—";
-        const n = Number(v);
-        if (Number.isNaN(n)) return "—";
-        return `${n.toFixed(2)} °C`;
-      }
-
-      function formatLatestHum(v) {
-        if (v === null || v === undefined) return "—";
-        const n = Number(v);
-        if (Number.isNaN(n)) return "—";
-        return `${Math.round(n)}% RH`;
-      }
-
-      function lastPoint(series) {
-        const pts = [...(series.points || [])];
-        if (!pts.length) return null;
-        pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
-        return pts[pts.length - 1];
-      }
-
-      function renderLatest() {
-        const el = document.getElementById("latest");
-        el.innerHTML = "";
-        const seriesById = new Map();
-        if (tempDayData && tempDayData.series) {
-          for (const s of tempDayData.series) seriesById.set(s.sensor_id, s);
-        }
-        const devices = [...devicesById.values()].sort((a, b) => a.id - b.id);
-        for (const d of devices) {
-          const s = seriesById.get(d.id);
-          const p = s ? lastPoint(s) : null;
-          const row = document.createElement("div");
-          row.className = "device latest-row";
-          const name = document.createElement("span");
-          name.textContent = d.name ? `${d.id} — ${d.name}` : `${d.id}`;
-          const vals = document.createElement("span");
-          vals.className = "latest-vals";
-          vals.textContent = p
-            ? `${formatLatestTemp(p.temp)}  ${formatLatestHum(p.humidity)}`
-            : "—";
-          row.appendChild(name);
-          row.appendChild(vals);
-          el.appendChild(row);
-        }
       }
 
       function roundedRectPath(ctx, x, y, w, h, r) {
@@ -396,16 +336,11 @@
           const s = series[i];
           const p = nearestPoint(s, tMs);
           if (!p) continue;
-          if (metric === "temp") {
-            if (p.temp === null || p.temp === undefined) continue;
-            const n = Number(p.temp);
+          if (metric === "orp") {
+            if (p.orp === null || p.orp === undefined) continue;
+            const n = Number(p.orp);
             if (Number.isNaN(n)) continue;
-            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${n.toFixed(2)} °C` });
-          } else {
-            if (p.humidity === null || p.humidity === undefined) continue;
-            const n = Number(p.humidity);
-            if (Number.isNaN(n)) continue;
-            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${Math.round(n)}% RH` });
+            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${n.toFixed(2)} mV` });
           }
         }
         if (lines.length === 0) return;
@@ -459,12 +394,11 @@
       }
 
       function valueFromPoint(p, metric) {
-        if (metric === "temp") {
-          if (p.temp === null || p.temp === undefined) return NaN;
-          return Number(p.temp);
+        if (metric === "orp") {
+          if (p.orp === null || p.orp === undefined) return NaN;
+          return Number(p.orp);
         }
-        if (p.humidity === null || p.humidity === undefined) return NaN;
-        return Number(p.humidity);
+        return NaN;
       }
 
       function drawSingleChart(canvasId, metric, hoverMs) {
@@ -472,7 +406,7 @@
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        if (!tempDayData || !tempDayData.series) {
+        if (!orpDayData || !orpDayData.series) {
           ctx.fillStyle = "#666";
           ctx.fillText("No data loaded.", 10, 20);
           return;
@@ -492,35 +426,22 @@
         }
         if (!isFinite(minY) || !isFinite(maxY)) {
           ctx.fillStyle = "#666";
-          ctx.fillText(
-            metric === "temp"
-              ? "Select at least one sensor with temperature data."
-              : "Select at least one sensor with humidity data.",
-            10,
-            20
-          );
+          ctx.fillText("Select at least one sensor with ORP data.", 10, 20);
           return;
         }
         if (minY === maxY) {
-          const d = metric === "temp" ? 1 : 5;
-          minY -= d;
-          maxY += d;
+          minY -= 10;
+          maxY += 10;
         }
         const pad = (maxY - minY) * 0.1;
         minY -= pad;
         maxY += pad;
 
-        if (metric === "temp") {
-          const range = maxY - minY;
-          if (range < 2) {
-            const mid = (minY + maxY) / 2;
-            minY = mid - 1;
-            maxY = mid + 1;
-          }
-        }
-        if (metric === "humidity") {
-          minY = Math.min(30, minY);
-          maxY = Math.max(80, maxY);
+        const range = maxY - minY;
+        if (range < 20) {
+          const mid = (minY + maxY) / 2;
+          minY = mid - 10;
+          maxY = mid + 10;
         }
 
         function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
@@ -539,29 +460,6 @@
           ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
         }
 
-        if (metric === "temp") {
-          ctx.save();
-          ctx.lineWidth = 1;
-          ctx.setLineDash([5, 5]);
-          if (minY <= 0 && maxY >= 0) {
-            ctx.strokeStyle = "#1565c0";
-            const y0 = yFor(0);
-            ctx.beginPath();
-            ctx.moveTo(left, y0);
-            ctx.lineTo(left + w, y0);
-            ctx.stroke();
-          }
-          if (minY <= 10 && maxY >= 10) {
-            ctx.strokeStyle = "#f9a825";
-            const y10 = yFor(10);
-            ctx.beginPath();
-            ctx.moveTo(left, y10);
-            ctx.lineTo(left + w, y10);
-            ctx.stroke();
-          }
-          ctx.restore();
-        }
-
         ctx.strokeStyle = "#bbb";
         ctx.beginPath();
         ctx.moveTo(left, top);
@@ -571,23 +469,11 @@
 
         ctx.fillStyle = "#444";
         ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        const yFmt = metric === "temp" ? (v) => v.toFixed(1) : (v) => String(Math.round(v));
+        const yFmt = (v) => v.toFixed(1);
         for (let i = 0; i <= 5; i++) {
           const v = maxY - (i / 5) * (maxY - minY);
           const y = top + (i / 5) * h;
           ctx.fillText(yFmt(v), 8, y + 4);
-        }
-        if (metric === "temp" && minY <= 0 && maxY >= 0) {
-          const y0 = yFor(0);
-          ctx.fillStyle = "#1565c0";
-          ctx.fillText(yFmt(0), 8, y0 + 4);
-          ctx.fillStyle = "#444";
-        }
-        if (metric === "temp" && minY <= 10 && maxY >= 10) {
-          const y10 = yFor(10);
-          ctx.fillStyle = "#f9a825";
-          ctx.fillText(yFmt(10), 8, y10 + 4);
-          ctx.fillStyle = "#444";
         }
 
         for (let i = 0; i <= 24; i += 3) {
@@ -596,9 +482,7 @@
           ctx.fillText(label, x - 14, top + h + 10);
         }
 
-        if (metric === "temp") {
-          drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, true);
-        }
+        drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, true);
 
         series.forEach((s, idx) => {
           ctx.strokeStyle = paletteColor(idx);
@@ -630,9 +514,7 @@
           ctx.stroke();
         });
 
-        if (metric === "temp") {
-          drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, false);
-        }
+        drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, false);
 
         let lx = left + 8, ly = top + 8;
         series.forEach((s, idx) => {
@@ -648,29 +530,27 @@
       }
 
       function drawCharts() {
-        drawSingleChart("chartTemp", "temp", hoverTempMs);
-        drawSingleChart("chartHumidity", "humidity", hoverHumMs);
+        drawSingleChart("chartOrp", "orp", hoverOrpMs);
       }
 
-      async function fetchTempDay() {
+      async function fetchOrpDay() {
         const dayEl = document.getElementById("day");
         const day = dayEl.value;
         try {
-          const resp = await fetch("/api/temp_day", {
+          const resp = await fetch("/api/orp_day", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Accept": "application/json" },
             body: JSON.stringify({ day }),
           });
           const data = await resp.json();
           if (!resp.ok) throw new Error(JSON.stringify(data));
-          tempDayData = data;
+          orpDayData = data;
           const statusEl = document.getElementById("status");
           if (statusEl.textContent.startsWith("Failed to load day data:")) {
             const n = document.querySelectorAll('#devices input[type="checkbox"]').length;
             statusEl.textContent = `Loaded ${n} device(s).`;
           }
           statusEl.classList.remove("err");
-          renderLatest();
           drawCharts();
         } catch (e) {
           const statusEl = document.getElementById("status");
@@ -684,7 +564,7 @@
         const devicesEl = document.getElementById("devices");
         devicesEl.innerHTML = "";
         try {
-          const resp = await fetch("/api/devices", { headers: { "Accept": "application/json" } });
+          const resp = await fetch("/api/orp_devices", { headers: { "Accept": "application/json" } });
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const devices = await resp.json();
           statusEl.textContent = `Loaded ${devices.length} device(s).`;
@@ -715,8 +595,7 @@
 
             devicesById.set(id, { id, name });
           }
-          renderLatest();
-          await fetchTempDay();
+          await fetchOrpDay();
         } catch (e) {
           statusEl.textContent = "Failed to load devices: " + e;
           statusEl.classList.add("err");
@@ -725,41 +604,36 @@
 
       const dayEl = document.getElementById("day");
       dayEl.value = todayIso();
-      dayEl.addEventListener("change", fetchTempDay);
+      dayEl.addEventListener("change", fetchOrpDay);
       document.getElementById("prevDay").addEventListener("click", () => shiftDay(-1));
       document.getElementById("nextDay").addEventListener("click", () => shiftDay(1));
 
-      function attachChartInteractions(canvasId, metric) {
+      function attachChartInteractions(canvasId) {
         const canvas = document.getElementById(canvasId);
 
         canvas.addEventListener("mousemove", (ev) => {
-          if (!tempDayData || !tempDayData.series) return;
+          if (!orpDayData || !orpDayData.series) return;
           const rect = canvas.getBoundingClientRect();
           const x = ev.clientX - rect.left;
           const { left, w } = chartGeometry(canvas);
           const xCanvas = (x / rect.width) * canvas.width;
           if (xCanvas < left || xCanvas > left + w) {
-            if (metric === "temp") hoverTempMs = null;
-            else hoverHumMs = null;
+            hoverOrpMs = null;
             drawCharts();
             return;
           }
           const frac = (xCanvas - left) / w;
-          const tMs = timeMsFromMouseFrac(frac);
-          if (metric === "temp") hoverTempMs = tMs;
-          else hoverHumMs = tMs;
+          hoverOrpMs = timeMsFromMouseFrac(frac);
           drawCharts();
         });
 
         canvas.addEventListener("mouseleave", () => {
-          if (metric === "temp") hoverTempMs = null;
-          else hoverHumMs = null;
+          hoverOrpMs = null;
           drawCharts();
         });
       }
 
-      attachChartInteractions("chartTemp", "temp");
-      attachChartInteractions("chartHumidity", "humidity");
+      attachChartInteractions("chartOrp");
 
       loadDevices();
     </script>

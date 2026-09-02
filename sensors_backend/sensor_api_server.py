@@ -71,6 +71,15 @@ def _avg_from_temps_string(s: Optional[str], logger: logging.Logger) -> Optional
     return sum(vals) / len(vals)
 
 
+def _optional_float(value: Any, field: str) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} must be a number")
+
+
 def create_app() -> Flask:
     load_dotenv()
     logger = setup_logging()
@@ -112,6 +121,160 @@ def create_app() -> Flask:
                 rows = cur.fetchall()
             resp: List[Dict[str, Any]] = [{"id": int(r[0]), "name": r[1]} for r in rows]
             return jsonify(resp)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @app.get("/api/orp_devices")
+    def orp_devices():
+        """
+        Returns [{id: <sensor_id>, name: <name or null>}, ...]
+        sensor_id list comes from orp_raw; name is optional from sensors table.
+        """
+        logger.info("endpoint hit: /api/orp_devices")
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT tr.sensor_id AS id, s.name AS name
+                    FROM orp_raw tr
+                    LEFT JOIN sensors s ON s.id = tr.sensor_id
+                    ORDER BY tr.sensor_id ASC;
+                    """
+                )
+                rows = cur.fetchall()
+            resp: List[Dict[str, Any]] = [{"id": int(r[0]), "name": r[1]} for r in rows]
+            return jsonify(resp)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @app.get("/api/orp_settings")
+    def get_orp_settings():
+        logger.info("endpoint hit: GET /api/orp_settings")
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT orp_offset, ph FROM orp_settings LIMIT 1;")
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"orp_offset": None, "ph": None})
+            orp_offset, ph = row
+            return jsonify(
+                {
+                    "orp_offset": float(orp_offset) if orp_offset is not None else None,
+                    "ph": float(ph) if ph is not None else None,
+                }
+            )
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @app.post("/api/orp_settings")
+    def save_orp_settings():
+        logger.info("endpoint hit: POST /api/orp_settings")
+        data = request.get_json(silent=True) or {}
+        try:
+            orp_offset = _optional_float(data.get("orp_offset"), "orp_offset")
+            ph = _optional_float(data.get("ph"), "ph")
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM orp_settings;")
+                count = int(cur.fetchone()[0])
+                if count:
+                    cur.execute(
+                        "UPDATE orp_settings SET orp_offset = %s, ph = %s;",
+                        (orp_offset, ph),
+                    )
+                else:
+                    cur.execute(
+                        "INSERT INTO orp_settings (orp_offset, ph) VALUES (%s, %s);",
+                        (orp_offset, ph),
+                    )
+            conn.commit()
+            return jsonify({"orp_offset": orp_offset, "ph": ph})
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @app.post("/api/orp_day")
+    def orp_day():
+        """
+        Body JSON: { "day": "YYYY-MM-DD" }
+        Returns:
+          {
+            "day": "YYYY-MM-DD",
+            "series": [
+              {
+                "sensor_id": 123,
+                "name": "...",
+                "points": [
+                  { "ts": "<ISO-8601 timestamptz>", "orp": 250.5 },
+                  ...
+                ]
+              },
+              ...
+            ]
+          }
+        """
+        logger.info("endpoint hit: /api/orp_day")
+        data = request.get_json(silent=True) or {}
+        day_raw = data.get("day")
+
+        if not isinstance(day_raw, str):
+            return jsonify({"error": "day must be a string like YYYY-MM-DD"}), 400
+
+        try:
+            day = datetime.strptime(day_raw, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "day must be in format YYYY-MM-DD"}), 400
+
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT orp.sensor_id, s.name, orp.datetime, orp.orp_mv, orp.orp_offset, orp.temp, orp.ph
+                    FROM orp_raw orp
+                    LEFT JOIN sensors s ON s.id = orp.sensor_id
+                    WHERE orp.datetime::date = %s::date
+                    ORDER BY orp.sensor_id ASC, orp.datetime ASC;
+                    """,
+                    (day,),
+                )
+                rows = list(cur.fetchall())
+
+            by_sensor: Dict[int, Dict[str, Any]] = {}
+            for sensor_id, name, dt, orp_mv, orp_offset, temp, ph in rows:
+                sid = int(sensor_id)
+                if sid not in by_sensor:
+                    by_sensor[sid] = {"sensor_id": sid, "name": name, "points": []}
+                ts_str = dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+                by_sensor[sid]["points"].append(
+                    {
+                        "ts": ts_str,
+                        "orp": float(orp_mv) if orp_mv is not None else None,
+                        "orp_offset": float(orp_offset) if orp_offset is not None else None,
+                        "temp": float(temp) if temp is not None else None,
+                        "ph": float(ph) if ph is not None else None
+                    }
+                )
+
+            series = [by_sensor[k] for k in sorted(by_sensor.keys())]
+            return jsonify({"day": day.isoformat(), "series": series})
         finally:
             try:
                 conn.close()
