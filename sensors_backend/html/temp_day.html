@@ -19,6 +19,8 @@
       input[type="date"] { padding: 6px 8px; }
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button:disabled:hover { background: #f7f7f7; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
       h2.chart-section { margin-top: 28px; }
     </style>
@@ -31,7 +33,7 @@
       <label for="day"><b>Day</b></label>
       <button id="prevDay" type="button" title="Previous day">◀</button>
       <input id="day" type="date" />
-      <button id="nextDay" type="button" title="Next day">▶</button>
+      <button id="nextDay" type="button" title="Next day" disabled>▶</button>
       <a href="/" class="muted" style="margin-left: 10px;">Back</a>
     </div>
 
@@ -40,8 +42,8 @@
         <div class="muted" style="margin-bottom: 8px;"><b>Devices</b></div>
         <div id="devices"></div>
       </div>
-      <div class="box">
-        <div class="muted" style="margin-bottom: 8px;"><b>Latest</b></div>
+      <div class="box" id="latestBox">
+        <div class="muted" style="margin-bottom: 8px;"><b id="latestTitle">Latest</b></div>
         <div id="latest"></div>
       </div>
     </div>
@@ -83,8 +85,15 @@
         const cur = dayEl.value || todayIso();
         const d = isoToLocalDate(cur);
         d.setDate(d.getDate() + deltaDays);
-        dayEl.value = localDateToIso(d);
+        const next = localDateToIso(d);
+        if (deltaDays > 0 && next > todayIso()) return;
+        dayEl.value = next;
         fetchTempDay();
+      }
+
+      function updateNextDayButton() {
+        const day = document.getElementById("day").value || todayIso();
+        document.getElementById("nextDay").disabled = day >= todayIso();
       }
 
       function getSelectedSensorIds() {
@@ -348,12 +357,30 @@
       }
 
       function renderLatest() {
+        const box = document.getElementById("latestBox");
+        const dayEl = document.getElementById("day");
+        const isToday = (dayEl.value || todayIso()) === todayIso();
+        box.style.display = isToday ? "" : "none";
+        if (!isToday) return;
+
         const el = document.getElementById("latest");
         el.innerHTML = "";
         const seriesById = new Map();
+        let latestMs = null;
         if (tempDayData && tempDayData.series) {
-          for (const s of tempDayData.series) seriesById.set(s.sensor_id, s);
+          for (const s of tempDayData.series) {
+            seriesById.set(s.sensor_id, s);
+            const p = lastPoint(s);
+            if (!p) continue;
+            const tMs = Date.parse(p.ts);
+            if (Number.isNaN(tMs)) continue;
+            if (latestMs === null || tMs > latestMs) latestMs = tMs;
+          }
         }
+        const titleEl = document.getElementById("latestTitle");
+        titleEl.textContent = latestMs === null
+          ? "Latest"
+          : `Latest (${formatTimeLabel(latestMs)})`;
         const devices = [...devicesById.values()].sort((a, b) => a.id - b.id);
         for (const d of devices) {
           const s = seriesById.get(d.id);
@@ -365,7 +392,7 @@
           const vals = document.createElement("span");
           vals.className = "latest-vals";
           vals.textContent = p
-            ? `${formatLatestTemp(p.temp)}  ${formatLatestHum(p.humidity)}`
+            ? `${formatLatestTemp(p.temp)}, ${formatLatestHum(p.humidity)}`
             : "—";
           row.appendChild(name);
           row.appendChild(vals);
@@ -655,6 +682,7 @@
       async function fetchTempDay() {
         const dayEl = document.getElementById("day");
         const day = dayEl.value;
+        updateNextDayButton();
         try {
           const resp = await fetch("/api/temp_day", {
             method: "POST",
