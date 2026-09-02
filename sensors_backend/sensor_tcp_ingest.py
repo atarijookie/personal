@@ -232,6 +232,70 @@ def coerce_temp_sensor_payload(
     return sensor_id, temp_f, hum_i, battery_f
 
 
+def coerce_orp_sensor_payload(
+    obj: dict,
+) -> Optional[Tuple[int, Optional[float], Optional[float]]]:
+    if obj.get("type") != "orp_sensor":
+        return None
+
+    dev_id = obj.get("dev_id")
+    if dev_id is None:
+        return None
+
+    try:
+        sensor_id = int(dev_id)
+    except (TypeError, ValueError):
+        return None
+
+    orp = obj.get("orp")
+    temp = obj.get("temp")
+
+    try:
+        orp_mv = None if orp is None else float(orp)
+    except (TypeError, ValueError):
+        orp_mv = None
+
+    try:
+        temp_f = None if temp is None else float(temp)
+    except (TypeError, ValueError):
+        temp_f = None
+
+    return sensor_id, orp_mv, temp_f
+
+
+def read_orp_settings(conn) -> Tuple[Optional[float], Optional[float]]:
+    with conn.cursor() as cur:
+        cur.execute("SELECT orp_offset, ph FROM orp_settings LIMIT 1;")
+        row = cur.fetchone()
+    if not row:
+        return None, None
+    orp_offset, ph = row
+    return (
+        float(orp_offset) if orp_offset is not None else None,
+        float(ph) if ph is not None else None,
+    )
+
+
+def insert_orp_raw(
+    conn,
+    logger: logging.Logger,
+    sensor_id: int,
+    orp_mv: Optional[float],
+    orp_offset: Optional[float],
+    temp: Optional[float],
+    ph: Optional[float],
+) -> None:
+    sql = (
+        "INSERT INTO orp_raw (sensor_id, orp_mv, orp_offset, temp, ph) "
+        "VALUES (%s, %s, %s, %s, %s);"
+    )
+    params = (sensor_id, orp_mv, orp_offset, temp, ph)
+    logger.info("SQL: %s params=%s", sql, params)
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+    conn.commit()
+
+
 def _closest_value(
     rows: List[Tuple[int, Optional[float], Optional[int]]], target_ts: int, start_idx: int
 ) -> Tuple[int, Optional[float], Optional[int], int]:
@@ -375,22 +439,31 @@ def handle_connection(
                         continue
                     got_json = True
 
-                    payload = coerce_temp_sensor_payload(obj)
-                    if payload is None:
-                        # JSON received but not a temp_sensor payload; ignore
-                        break
+                    msg_type = obj.get("type")
+                    if msg_type == "temp_sensor":
+                        payload = coerce_temp_sensor_payload(obj)
+                        if payload is None:
+                            break
 
-                    sensor_id, temp, humidity, battery = payload
-                    insert_temp_raw(conn_pg, logger, sensor_id, temp, humidity, battery)
+                        sensor_id, temp, humidity, battery = payload
+                        insert_temp_raw(conn_pg, logger, sensor_id, temp, humidity, battery)
 
-                    now_ts = int(time.time())
-                    last_ts = last_agg_by_sensor.get(sensor_id, 0)
-                    if now_ts - last_ts >= 15 * 60:
-                        last_agg_by_sensor[sensor_id] = now_ts
-                        try:
-                            aggregate_today_for_sensor(conn_pg, logger, sensor_id)
-                        except Exception as e:
-                            logger.warning("aggregation failed for sensor_id=%s: %s", sensor_id, e)
+                        now_ts = int(time.time())
+                        last_ts = last_agg_by_sensor.get(sensor_id, 0)
+                        if now_ts - last_ts >= 15 * 60:
+                            last_agg_by_sensor[sensor_id] = now_ts
+                            try:
+                                aggregate_today_for_sensor(conn_pg, logger, sensor_id)
+                            except Exception as e:
+                                logger.warning("aggregation failed for sensor_id=%s: %s", sensor_id, e)
+                    elif msg_type == "orp_sensor":
+                        payload = coerce_orp_sensor_payload(obj)
+                        if payload is None:
+                            break
+
+                        sensor_id, orp_mv, temp = payload
+                        orp_offset, ph = read_orp_settings(conn_pg)
+                        insert_orp_raw(conn_pg, logger, sensor_id, orp_mv, orp_offset, temp, ph)
                     break
     except Exception as e:
         logger.warning("connection %s error: %s", client_addr, e)

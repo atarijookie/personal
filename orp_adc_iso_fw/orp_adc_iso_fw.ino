@@ -9,7 +9,7 @@
 #define REPORT_INTERVAL_MS  (15 * 60 * 1000)
 
 // ESP-NOW sender configuration
-static const int thisDeviceId = 7;    // will use this id for water temperature
+static const int thisDeviceId = 7;    // will use this id for water temperature and orp values
 static const uint8_t espNowBroadcastMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 static void onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status);
@@ -162,7 +162,7 @@ void espNow_temperature(int deviceId, float temperature)
   EspNowSend(payload, payloadLen);
 }
 
-void espNow_orp(int deviceId, int orpMiliVolts)
+void espNow_orp(int deviceId, int orpMiliVolts, float temperature)
 {
   uint32_t packetRandomId = esp_random();
 
@@ -170,8 +170,8 @@ void espNow_orp(int deviceId, int orpMiliVolts)
   char payload[250];
 
   snprintf(payload, sizeof(payload),
-          "{\"type\":\"orp_sensor\",\"dev_id\":%d,\"packet_id\":%08lu,\"orp\":%d}\n\r",
-          deviceId, (unsigned long) packetRandomId, orpMiliVolts);
+          "{\"type\":\"orp_sensor\",\"dev_id\":%d,\"packet_id\":%08lu,\"orp\":%d,\"temp\":%.1f}\n\r",
+          deviceId, (unsigned long) packetRandomId, orpMiliVolts, (double) temperature);
 
   const size_t payloadLen = strlen(payload);
   EspNowSend(payload, payloadLen);
@@ -198,7 +198,7 @@ void reportViaEspNow(float temperature, int orpMiliVolts, bool tempOk, bool adcO
   }
 
   if(adcOk) {
-    espNow_orp(thisDeviceId, orpMiliVolts);           // send orp mV value
+    espNow_orp(thisDeviceId, orpMiliVolts, temperature);    // send orp mV value
   }
 }
 

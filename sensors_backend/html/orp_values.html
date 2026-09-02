@@ -8,42 +8,41 @@
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
       h1 { margin: 0 0 12px 0; }
       #status { color: #444; margin: 8px 0 16px 0; }
-      .device { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
       .muted { color: #666; font-size: 12px; }
       .err { color: #b00020; }
-      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 520px; }
       .row { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px 0; }
       input[type="date"] { padding: 6px 8px; }
       button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
       button:hover { background: #f0f0f0; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button:disabled:hover { background: #f7f7f7; }
       canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
       h2.chart-section { margin-top: 28px; }
     </style>
   </head>
   <body>
     <h1>ORP values</h1>
-    <div id="status" class="muted">Loading devices…</div>
+    <div id="status" class="muted">Loading device…</div>
 
     <div class="row">
       <label for="day"><b>Day</b></label>
       <button id="prevDay" type="button" title="Previous day">◀</button>
       <input id="day" type="date" />
-      <button id="nextDay" type="button" title="Next day">▶</button>
+      <button id="nextDay" type="button" title="Next day" disabled>▶</button>
       <a href="/" class="muted" style="margin-left: 10px;">Back</a>
     </div>
 
-    <div class="box">
-      <div class="muted" style="margin-bottom: 8px;"><b>Devices</b></div>
-      <div id="devices"></div>
-    </div>
-
     <h2 class="chart-section">ORP graph</h2>
-    <canvas id="chartOrp" width="980" height="378"></canvas>
+    <canvas id="chartOrp" width="1040" height="400"></canvas>
 
     <script>
-      let devicesById = new Map(); // id -> {id,name}
+      let orpDevice = null;        // first ORP device {id, name}
       let orpDayData = null;       // response from /api/orp_day
       let hoverOrpMs = null;
+
+      const COLOR_TEMP = "#d32f2f";
+      const COLOR_ORP = "#4a148c";
+      const COLOR_CL = "#2e7d32";
 
       function todayIso() {
         const d = new Date();
@@ -70,23 +69,15 @@
         const cur = dayEl.value || todayIso();
         const d = isoToLocalDate(cur);
         d.setDate(d.getDate() + deltaDays);
-        dayEl.value = localDateToIso(d);
+        const next = localDateToIso(d);
+        if (deltaDays > 0 && next > todayIso()) return;
+        dayEl.value = next;
         fetchOrpDay();
       }
 
-      function getSelectedSensorIds() {
-        const cbs = document.querySelectorAll('#devices input[type="checkbox"]');
-        const ids = [];
-        for (const cb of cbs) {
-          if (cb.checked) ids.push(parseInt(cb.value, 10));
-        }
-        ids.sort((a, b) => a - b);
-        return ids;
-      }
-
-      function paletteColor(i) {
-        const colors = ["#1976d2", "#d32f2f", "#388e3c", "#f57c00", "#7b1fa2", "#00796b", "#5d4037", "#455a64"];
-        return colors[i % colors.length];
+      function updateNextDayButton() {
+        const day = document.getElementById("day").value || todayIso();
+        document.getElementById("nextDay").disabled = day >= todayIso();
       }
 
       /** Košice, SK — WGS84; sun math from SunCalc (c) Vladimir Agafonkin, BSD-2-Clause */
@@ -248,10 +239,10 @@
       }
 
       function chartGeometry(canvas) {
-        const left = 50, right = 20, top = 15, bottom = 30;
+        const left = 52, right = 100, top = 32, bottom = 32;
         const w = canvas.width - left - right;
         const h = canvas.height - top - bottom;
-        return { left, right, top, bottom, w, h };
+        return { left, right, top, bottom, w, h, xOrpAxis: left + w, xClAxis: left + w + 48 };
       }
 
       /** FL = civil dawn (−6°); TD = astronomical dusk (full dark); max = solar noon (Košice). */
@@ -303,14 +294,34 @@
         }
       }
 
-      function visibleSeries() {
-        if (!orpDayData || !orpDayData.series) return [];
-        const selected = new Set(getSelectedSensorIds());
-        return orpDayData.series.filter(s => selected.has(s.sensor_id));
+      function activeSeries() {
+        if (!orpDayData || !orpDayData.series || !orpDayData.series.length) return null;
+        return orpDayData.series[0];
       }
 
-      function niceSensorLabel(s) {
-        return s.name ? `${s.sensor_id} — ${s.name}` : String(s.sensor_id);
+      function tempValue(p) {
+        if (p.temp === null || p.temp === undefined) return NaN;
+        const n = Number(p.temp);
+        return Number.isNaN(n) ? NaN : n;
+      }
+
+      function orpShownValue(p) {
+        if (p.orp === null || p.orp === undefined) return NaN;
+        const mv = Number(p.orp);
+        if (Number.isNaN(mv)) return NaN;
+        const off = p.orp_offset === null || p.orp_offset === undefined ? 0 : Number(p.orp_offset);
+        return Number.isNaN(off) ? mv : mv + off;
+      }
+
+      function chlorineValue(p) {
+        if (p.ppm === null || p.ppm === undefined) return NaN;
+        const n = Number(p.ppm);
+        return Number.isNaN(n) ? NaN : n;
+      }
+
+      function fmtNum(n, digits) {
+        if (n === null || n === undefined || Number.isNaN(n)) return "—";
+        return Number(n).toFixed(digits);
       }
 
       function roundedRectPath(ctx, x, y, w, h, r) {
@@ -324,26 +335,73 @@
         ctx.closePath();
       }
 
-      function drawTooltip(ctx, canvas, tMs, series, metric) {
+      function yForScale(v, minY, maxY, top, h) {
+        return top + (1 - (v - minY) / (maxY - minY)) * h;
+      }
+
+      function drawMetricLine(ctx, points, valueFn, yFn, color, dayStart, daySpan, left, w) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const pts = [...points];
+        pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+        let seg = [];
+        const flushSeg = () => {
+          if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
+          seg = [];
+        };
+        for (const p of pts) {
+          const n = valueFn(p);
+          if (Number.isNaN(n)) {
+            flushSeg();
+            continue;
+          }
+          const tMs = Date.parse(p.ts);
+          if (Number.isNaN(tMs)) {
+            flushSeg();
+            continue;
+          }
+          const x = left + ((tMs - dayStart) / daySpan) * w;
+          seg.push({ x, y: yFn(n) });
+        }
+        flushSeg();
+        ctx.stroke();
+      }
+
+      function drawAxisLabels(ctx, ticks, color, x, align, top, h, minY, maxY) {
+        ctx.fillStyle = color;
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.textAlign = align;
+        ctx.textBaseline = "middle";
+        for (const tick of ticks) {
+          const y = yForScale(tick.v, minY, maxY, top, h);
+          ctx.fillText(tick.label, x, y);
+        }
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+      }
+
+      function drawAxisUnit(ctx, label, color, x, top) {
+        ctx.fillStyle = color;
+        ctx.font = "bold 11px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(label, x, top - 10);
+        ctx.textAlign = "left";
+      }
+
+      function drawTooltip(ctx, canvas, tMs, series) {
         if (tMs === null || tMs === undefined) return;
-        if (tMs > Date.now()) return;
         const geom = chartGeometry(canvas);
         const x = xForTimeMs(canvas, tMs);
+        const p = nearestPoint(series, tMs);
+        if (!p) return;
 
-        const timeLabel = formatTimeLabel(tMs);
-        const lines = [];
-        for (let i = 0; i < series.length; i++) {
-          const s = series[i];
-          const p = nearestPoint(s, tMs);
-          if (!p) continue;
-          if (metric === "orp") {
-            if (p.orp === null || p.orp === undefined) continue;
-            const n = Number(p.orp);
-            if (Number.isNaN(n)) continue;
-            lines.push({ color: paletteColor(i), label: niceSensorLabel(s), value: `${n.toFixed(2)} mV` });
-          }
-        }
-        if (lines.length === 0) return;
+        const lines = [
+          { color: COLOR_TEMP, label: "Temperature", value: `${fmtNum(tempValue(p), 1)} °C` },
+          { color: COLOR_ORP, label: "ORP", value: `${fmtNum(orpShownValue(p), 1)} mV` },
+          { color: COLOR_CL, label: "Chlorine", value: `${fmtNum(chlorineValue(p), 2)} ppm` },
+        ];
 
         ctx.save();
         ctx.strokeStyle = "rgba(0,0,0,0.25)";
@@ -353,7 +411,7 @@
         ctx.lineTo(x, geom.top + geom.h);
         ctx.stroke();
 
-        const header = `Time ${timeLabel}`;
+        const header = `Time ${formatTimeLabel(tMs)}`;
         const font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
         ctx.font = font;
 
@@ -393,61 +451,21 @@
         ctx.restore();
       }
 
-      function valueFromPoint(p, metric) {
-        if (metric === "orp") {
-          if (p.orp === null || p.orp === undefined) return NaN;
-          return Number(p.orp);
-        }
-        return NaN;
-      }
-
-      function drawSingleChart(canvasId, metric, hoverMs) {
-        const canvas = document.getElementById(canvasId);
+      function drawChart() {
+        const canvas = document.getElementById("chartOrp");
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-        if (!orpDayData || !orpDayData.series) {
-          ctx.fillStyle = "#666";
-          ctx.fillText("No data loaded.", 10, 20);
-          return;
-        }
-
-        const series = visibleSeries();
-        const { left, top, w, h } = chartGeometry(canvas);
-
-        let minY = Infinity, maxY = -Infinity;
-        for (const s of series) {
-          for (const p of (s.points || [])) {
-            const n = valueFromPoint(p, metric);
-            if (Number.isNaN(n)) continue;
-            minY = Math.min(minY, n);
-            maxY = Math.max(maxY, n);
-          }
-        }
-        if (!isFinite(minY) || !isFinite(maxY)) {
-          ctx.fillStyle = "#666";
-          ctx.fillText("Select at least one sensor with ORP data.", 10, 20);
-          return;
-        }
-        if (minY === maxY) {
-          minY -= 10;
-          maxY += 10;
-        }
-        const pad = (maxY - minY) * 0.1;
-        minY -= pad;
-        maxY += pad;
-
-        const range = maxY - minY;
-        if (range < 20) {
-          const mid = (minY + maxY) / 2;
-          minY = mid - 10;
-          maxY = mid + 10;
-        }
-
-        function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
-
+        const series = activeSeries();
+        const points = series ? (series.points || []) : [];
+        const { left, top, w, h, xOrpAxis, xClAxis } = chartGeometry(canvas);
         const dayIso = document.getElementById("day").value;
         const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+
+        const tempMin = 0, tempMax = 40;
+        const orpMin = 660, orpMax = 800;
+        const clMin = 0, clMax = 10;
 
         ctx.strokeStyle = "#eee";
         ctx.lineWidth = 1;
@@ -455,101 +473,112 @@
           const x = left + (i / 24) * w;
           ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + h); ctx.stroke();
         }
-        for (let i = 0; i <= 5; i++) {
-          const y = top + (i / 5) * h;
+        for (let i = 0; i <= 4; i++) {
+          const y = top + (i / 4) * h;
           ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
         }
 
-        ctx.strokeStyle = "#bbb";
+        ctx.save();
+        ctx.strokeStyle = COLOR_TEMP;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(left, top);
         ctx.lineTo(left, top + h);
+        ctx.stroke();
+        ctx.strokeStyle = COLOR_ORP;
+        ctx.beginPath();
+        ctx.moveTo(xOrpAxis, top);
+        ctx.lineTo(xOrpAxis, top + h);
+        ctx.stroke();
+        ctx.strokeStyle = COLOR_CL;
+        ctx.beginPath();
+        ctx.moveTo(xClAxis, top);
+        ctx.lineTo(xClAxis, top + h);
+        ctx.stroke();
+        ctx.strokeStyle = "#bbb";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(left, top + h);
         ctx.lineTo(left + w, top + h);
         ctx.stroke();
+        ctx.restore();
+
+        const tempTicks = [0, 10, 20, 30, 40].map(v => ({ v, label: String(v) }));
+        const orpTicks = [660, 700, 740, 780, 800].map(v => ({ v, label: String(v) }));
+        const clTicks = [0, 2, 4, 6, 8, 10].map(v => ({ v, label: String(v) }));
+
+        drawAxisLabels(ctx, tempTicks, COLOR_TEMP, 8, "left", top, h, tempMin, tempMax);
+        drawAxisLabels(ctx, orpTicks, COLOR_ORP, xOrpAxis + 6, "left", top, h, orpMin, orpMax);
+        drawAxisLabels(ctx, clTicks, COLOR_CL, xClAxis + 6, "left", top, h, clMin, clMax);
+        drawAxisUnit(ctx, "C", COLOR_TEMP, 22, top);
+        drawAxisUnit(ctx, "mV", COLOR_ORP, xOrpAxis + 18, top);
+        drawAxisUnit(ctx, "ppm", COLOR_CL, xClAxis + 16, top);
 
         ctx.fillStyle = "#444";
-        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        const yFmt = (v) => v.toFixed(1);
-        for (let i = 0; i <= 5; i++) {
-          const v = maxY - (i / 5) * (maxY - minY);
-          const y = top + (i / 5) * h;
-          ctx.fillText(yFmt(v), 8, y + 4);
-        }
-
+        ctx.textAlign = "center";
         for (let i = 0; i <= 24; i += 3) {
           const x = left + (i / 24) * w;
-          const label = String(i).padStart(2, "0") + ":00";
-          ctx.fillText(label, x - 14, top + h + 10);
+          ctx.fillText(String(i).padStart(2, "0") + ":00", x, top + h + 14);
         }
+        ctx.textAlign = "left";
 
         drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, true);
 
-        series.forEach((s, idx) => {
-          ctx.strokeStyle = paletteColor(idx);
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          const pts = [...(s.points || [])];
-          pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
-          let seg = [];
-          const flushSeg = () => {
-            if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
-            seg = [];
-          };
-          for (const p of pts) {
-            const n = valueFromPoint(p, metric);
-            if (Number.isNaN(n)) {
-              flushSeg();
-              continue;
-            }
-            const tMs = Date.parse(p.ts);
-            if (Number.isNaN(tMs)) {
-              flushSeg();
-              continue;
-            }
-            const x = left + ((tMs - dayStart) / daySpan) * w;
-            const y = yFor(n);
-            seg.push({ x, y });
-          }
-          flushSeg();
-          ctx.stroke();
-        });
+        if (points.length) {
+          drawMetricLine(ctx, points, tempValue, (v) => yForScale(v, tempMin, tempMax, top, h), COLOR_TEMP, dayStart, daySpan, left, w);
+          drawMetricLine(ctx, points, orpShownValue, (v) => yForScale(v, orpMin, orpMax, top, h), COLOR_ORP, dayStart, daySpan, left, w);
+          drawMetricLine(ctx, points, chlorineValue, (v) => yForScale(v, clMin, clMax, top, h), COLOR_CL, dayStart, daySpan, left, w);
+        }
 
         drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, false);
 
-        let lx = left + 8, ly = top + 8;
-        series.forEach((s, idx) => {
-          ctx.fillStyle = paletteColor(idx);
+        const legend = [
+          { color: COLOR_TEMP, label: "Temperature (°C)" },
+          { color: COLOR_ORP, label: "ORP (mV)" },
+          { color: COLOR_CL, label: "Chlorine (ppm)" },
+        ];
+        let lx = left + 8, ly = top + 14;
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        for (const item of legend) {
+          ctx.fillStyle = item.color;
           ctx.fillRect(lx, ly - 10, 10, 10);
           ctx.fillStyle = "#222";
-          ctx.fillText(niceSensorLabel(s), lx + 14, ly - 1);
-          ly += 16;
-          if (ly > top + h - 10) { ly = top + 8; lx += 180; }
-        });
+          ctx.fillText(item.label, lx + 14, ly - 1);
+          lx += ctx.measureText(item.label).width + 36;
+        }
 
-        if (hoverMs !== null) drawTooltip(ctx, canvas, hoverMs, series, metric);
+        if (!points.length) {
+          ctx.fillStyle = "#666";
+          ctx.fillText("No ORP data for this day.", left + 8, top + 36);
+        }
+
+        if (hoverOrpMs !== null && series) drawTooltip(ctx, canvas, hoverOrpMs, series);
       }
 
       function drawCharts() {
-        drawSingleChart("chartOrp", "orp", hoverOrpMs);
+        drawChart();
+      }
+
+      function deviceLabel(d) {
+        if (!d) return "";
+        return d.name ? `${d.id} — ${d.name}` : String(d.id);
       }
 
       async function fetchOrpDay() {
-        const dayEl = document.getElementById("day");
-        const day = dayEl.value;
+        updateNextDayButton();
+        if (!orpDevice) return;
+        const day = document.getElementById("day").value;
         try {
           const resp = await fetch("/api/orp_day", {
             method: "POST",
             headers: { "Content-Type": "application/json", "Accept": "application/json" },
-            body: JSON.stringify({ day }),
+            body: JSON.stringify({ day, sensor_id: orpDevice.id }),
           });
           const data = await resp.json();
           if (!resp.ok) throw new Error(JSON.stringify(data));
           orpDayData = data;
           const statusEl = document.getElementById("status");
-          if (statusEl.textContent.startsWith("Failed to load day data:")) {
-            const n = document.querySelectorAll('#devices input[type="checkbox"]').length;
-            statusEl.textContent = `Loaded ${n} device(s).`;
-          }
+          statusEl.textContent = `Device ${deviceLabel(orpDevice)}.`;
           statusEl.classList.remove("err");
           drawCharts();
         } catch (e) {
@@ -559,45 +588,24 @@
         }
       }
 
-      async function loadDevices() {
+      async function loadDevice() {
         const statusEl = document.getElementById("status");
-        const devicesEl = document.getElementById("devices");
-        devicesEl.innerHTML = "";
         try {
           const resp = await fetch("/api/orp_devices", { headers: { "Accept": "application/json" } });
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const devices = await resp.json();
-          statusEl.textContent = `Loaded ${devices.length} device(s).`;
-          statusEl.classList.remove("err");
-
-          for (const d of devices) {
-            const id = d.id;
-            const name = d.name ?? "";
-            const labelText = name ? `${id} — ${name}` : `${id}`;
-
-            const row = document.createElement("div");
-            row.className = "device";
-
-            const cb = document.createElement("input");
-            cb.type = "checkbox";
-            cb.id = `dev_${id}`;
-            cb.value = String(id);
-            cb.checked = true;
-            cb.addEventListener("change", drawCharts);
-
-            const label = document.createElement("label");
-            label.htmlFor = cb.id;
-            label.textContent = labelText;
-
-            row.appendChild(cb);
-            row.appendChild(label);
-            devicesEl.appendChild(row);
-
-            devicesById.set(id, { id, name });
+          if (!devices.length) {
+            statusEl.textContent = "No ORP devices found.";
+            statusEl.classList.add("err");
+            return;
           }
+          const d = devices[0];
+          orpDevice = { id: d.id, name: d.name ?? "" };
+          statusEl.textContent = `Device ${deviceLabel(orpDevice)}.`;
+          statusEl.classList.remove("err");
           await fetchOrpDay();
         } catch (e) {
-          statusEl.textContent = "Failed to load devices: " + e;
+          statusEl.textContent = "Failed to load device: " + e;
           statusEl.classList.add("err");
         }
       }
@@ -635,7 +643,7 @@
 
       attachChartInteractions("chartOrp");
 
-      loadDevices();
+      loadDevice();
     </script>
   </body>
 </html>

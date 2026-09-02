@@ -210,29 +210,81 @@ def create_app() -> Flask:
             except Exception:
                 pass
 
+    orp_conversion_table = {
+        70: [(735, 0.5), (760, 1.0), (772, 1.5), (780, 2.0), (788, 2.5), (794, 3.0), (800, 3.5)],
+        71: [(725, 0.5), (750, 1.0), (765, 1.5), (772, 2.0), (780, 2.5), (785, 3.0), (792, 3.5), (798, 4.0)],
+        72: [(720, 0.5), (742, 1.0), (756, 1.5), (763, 2.0), (772, 2.5), (778, 3.0), (782, 3.5), (786, 4.0), (792, 4.5), (798, 5.0)],
+        73: [(712, 0.5), (734, 1.0), (748, 1.5), (756, 2.0), (763, 2.5), (769, 3.0), (774, 3.5), (778, 4.0), (782, 4.5), (785, 5.0), (789, 5.5), (793, 6.0), (796, 6.5)],
+        74: [(704, 0.5), (725, 1.0), (738, 1.5), (748, 2.0), (754, 2.5), (761, 3.0), (765, 3.5), (770, 4.0), (774, 4.5), (778, 5.0), (781, 5.5), (783, 6.0), (786, 6.5), (788, 7.0), (792, 7.5)],
+        75: [(695, 0.5), (716, 1.0), (731, 1.5), (740, 2.0), (746, 2.5), (753, 3.0), (758, 3.5), (762, 4.0), (766, 4.5), (769, 5.0), (772, 5.5), (775, 6.0), (777, 6.5), (780, 7.0), (782, 7.5), (784, 8.0), (786, 8.5), (788, 9.0), (790, 9.5), (792, 10.0)],
+        76: [(687, 0.5), (709, 1.0), (722, 1.5), (732, 2.0), (738, 2.5), (745, 3.0), (750, 3.5), (754, 4.0), (757, 4.5), (761, 5.0), (764, 5.5), (767, 6.0), (770, 6.5), (772, 7.0), (774, 7.5), (776, 8.0), (778, 8.5), (780, 9.0), (782, 9.5), (784, 10.0)],
+        77: [(680, 0.5), (703, 1.0), (715, 1.5), (724, 2.0), (732, 2.5), (737, 3.0), (742, 3.5), (746, 4.0), (751, 4.5), (754, 5.0), (756, 5.5), (760, 6.0), (762, 6.5), (765, 7.0), (767, 7.5), (769, 8.0), (771, 8.5), (773, 9.0), (775, 9.5), (777, 10.0)],
+        78: [(675, 0.5), (695, 1.0), (708, 1.5), (717, 2.0), (725, 2.5), (731, 3.0), (735, 3.5), (739, 4.0), (743, 4.5), (746, 5.0), (750, 5.5), (753, 6.0), (756, 6.5), (758, 7.0), (760, 7.5), (762, 8.0), (764, 8.5), (766, 9.0), (767, 9.5), (769, 10.0)],
+        79: [(668, 0.5), (689, 1.0), (702, 1.5), (712, 2.0), (718, 2.5), (724, 3.0), (729, 3.5), (734, 4.0), (736, 4.5), (741, 5.0), (744, 5.5), (746, 6.0), (749, 6.5), (752, 7.0), (754, 7.5), (756, 8.0), (758, 8.5), (760, 9.0), (762, 9.5), (763, 10.0)],
+        80: [(662, 0.5), (684, 1.0), (697, 1.5), (705, 2.0), (714, 2.5), (719, 3.0), (724, 3.5), (728, 4.0), (733, 4.5), (736, 5.0), (738, 5.5), (742, 6.0), (744, 6.5), (746, 7.0), (749, 7.5), (751, 8.0), (753, 8.5), (755, 9.0), (756, 9.5), (758, 10.0)],
+    }
+
+    def orp_to_ppm(orp_mv, orp_offset, temp, ph):
+        # if any of the required values is None, fail right away
+        if None in [orp_mv, orp_offset, ph]:
+            logger.warning(f"orp_to_ppm - invalid input - orp_mv = {orp_mv}, orp_offset = {orp_offset}, ph = {ph}")
+            return None
+
+        # calc ppm with the expected offset
+        orp_mv2 = orp_mv + orp_offset
+
+        # convert pH from float to integer, so it can be used as stable dict key
+        ph_key = int(ph * 10 + 0.5)
+        if ph_key not in orp_conversion_table:
+            logger.warning(f"orp_to_ppm - pH value {ph:.1f} ({ph_key}) not in the conversion table!")
+            return None
+
+        # Linear interpolation between nearest ORP entries
+        points = orp_conversion_table[ph_key]
+
+        # input orp too low?
+        if orp_mv2 < points[0][0]:
+            logger.warning(f"orp_to_ppm - input orp {orp_mv2} too low, returning 0")
+            return 0
+
+        # input orp too high?
+        if orp_mv2 > points[-1][0]:
+            logger.warning(f"orp_to_ppm - input orp {orp_mv2} too high, returning 10")
+            return 10
+
+        for i in range(len(points) - 1):
+            orp1, ppm1 = points[i]
+            orp2, ppm2 = points[i + 1]
+            if orp1 <= orp_mv2 <= orp2:
+                # Interpolate PPM
+                t = (orp_mv2 - orp1) / (orp2 - orp1)
+                return round(ppm1 + t * (ppm2 - ppm1), 2)
+
+        return None
+
     @app.post("/api/orp_day")
     def orp_day():
         """
-        Body JSON: { "day": "YYYY-MM-DD" }
-        Returns:
+        Body JSON: { "day": "YYYY-MM-DD", "sensor_id": 7 }
+        Returns one series for that sensor:
           {
             "day": "YYYY-MM-DD",
             "series": [
               {
-                "sensor_id": 123,
+                "sensor_id": 7,
                 "name": "...",
                 "points": [
-                  { "ts": "<ISO-8601 timestamptz>", "orp": 250.5 },
+                  { "ts": "<ISO-8601 timestamptz>", "orp": 750.0, "orp_offset": 10.0, "temp": 30.0, "ph": 7.2 },
                   ...
                 ]
-              },
-              ...
+              }
             ]
           }
         """
         logger.info("endpoint hit: /api/orp_day")
         data = request.get_json(silent=True) or {}
         day_raw = data.get("day")
+        sid_raw = data.get("sensor_id")
 
         if not isinstance(day_raw, str):
             return jsonify({"error": "day must be a string like YYYY-MM-DD"}), 400
@@ -241,6 +293,11 @@ def create_app() -> Flask:
             day = datetime.strptime(day_raw, "%Y-%m-%d").date()
         except ValueError:
             return jsonify({"error": "day must be in format YYYY-MM-DD"}), 400
+
+        try:
+            sensor_id = int(sid_raw)
+        except (TypeError, ValueError):
+            return jsonify({"error": "sensor_id must be an integer"}), 400
 
         conn = connect_pg()
         try:
@@ -251,14 +308,17 @@ def create_app() -> Flask:
                     FROM orp_raw orp
                     LEFT JOIN sensors s ON s.id = orp.sensor_id
                     WHERE orp.datetime::date = %s::date
-                    ORDER BY orp.sensor_id ASC, orp.datetime ASC;
+                      AND orp.sensor_id = %s
+                    ORDER BY orp.datetime ASC;
                     """,
-                    (day,),
+                    (day, sensor_id),
                 )
                 rows = list(cur.fetchall())
 
             by_sensor: Dict[int, Dict[str, Any]] = {}
             for sensor_id, name, dt, orp_mv, orp_offset, temp, ph in rows:
+                ppm = orp_to_ppm(orp_mv, orp_offset, temp, ph)
+
                 sid = int(sensor_id)
                 if sid not in by_sensor:
                     by_sensor[sid] = {"sensor_id": sid, "name": name, "points": []}
@@ -269,7 +329,8 @@ def create_app() -> Flask:
                         "orp": float(orp_mv) if orp_mv is not None else None,
                         "orp_offset": float(orp_offset) if orp_offset is not None else None,
                         "temp": float(temp) if temp is not None else None,
-                        "ph": float(ph) if ph is not None else None
+                        "ph": float(ph) if ph is not None else None,
+                        "ppm": float(ppm) if ppm is not None else None,
                     }
                 )
 
