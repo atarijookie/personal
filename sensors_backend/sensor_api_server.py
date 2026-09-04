@@ -224,14 +224,20 @@ def create_app() -> Flask:
         80: [(662, 0.5), (684, 1.0), (697, 1.5), (705, 2.0), (714, 2.5), (719, 3.0), (724, 3.5), (728, 4.0), (733, 4.5), (736, 5.0), (738, 5.5), (742, 6.0), (744, 6.5), (746, 7.0), (749, 7.5), (751, 8.0), (753, 8.5), (755, 9.0), (756, 9.5), (758, 10.0)],
     }
 
-    def orp_to_ppm(orp_mv, orp_offset, temp, ph):
-        # if any of the required values is None, fail right away
-        if None in [orp_mv, orp_offset, ph]:
-            logger.warning(f"orp_to_ppm - invalid input - orp_mv = {orp_mv}, orp_offset = {orp_offset}, ph = {ph}")
+    def orp_to_ppm(orp_measured, orp_offset, temp_C, ph):
+        # use defaults for the offset, temperature and pH, if not provided
+        orp_offset = 0 if orp_offset is None else orp_offset
+        temp_C = 25 if temp_C is None else temp_C
+        ph = 7 if ph is None else ph
+
+        # only orp_measured is minimaly required for calculation, fail if it's not provided
+        if orp_measured is None:
+            logger.warning(f"orp_to_ppm - invalid input - orp_measured = {orp_measured}")
             return None
 
-        # calc ppm with the expected offset
-        orp_mv2 = orp_mv + orp_offset
+        # calc orp with the expected offset and compensate for temperature (table is for 25C)
+        k = 1.5             # k is the temperature coefficient in mV/C, because ORP drops when water gets warmer
+        orp_25 = orp_measured + orp_offset + k * (temp_C - 25)
 
         # convert pH from float to integer, so it can be used as stable dict key
         ph_key = int(ph * 10 + 0.5)
@@ -243,21 +249,21 @@ def create_app() -> Flask:
         points = orp_conversion_table[ph_key]
 
         # input orp too low?
-        if orp_mv2 < points[0][0]:
-            logger.warning(f"orp_to_ppm - input orp {orp_mv2} too low, returning 0")
+        if orp_25 < points[0][0]:
+            logger.warning(f"orp_to_ppm - input orp {orp_25} too low, returning 0")
             return 0
 
         # input orp too high?
-        if orp_mv2 > points[-1][0]:
-            logger.warning(f"orp_to_ppm - input orp {orp_mv2} too high, returning 10")
+        if orp_25 > points[-1][0]:
+            logger.warning(f"orp_to_ppm - input orp {orp_25} too high, returning 10")
             return 10
 
         for i in range(len(points) - 1):
             orp1, ppm1 = points[i]
             orp2, ppm2 = points[i + 1]
-            if orp1 <= orp_mv2 <= orp2:
+            if orp1 <= orp_25 <= orp2:
                 # Interpolate PPM
-                t = (orp_mv2 - orp1) / (orp2 - orp1)
+                t = (orp_25 - orp1) / (orp2 - orp1)
                 return round(ppm1 + t * (ppm2 - ppm1), 2)
 
         return None

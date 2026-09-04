@@ -220,46 +220,46 @@ void showTempAndOrp(float temperature, int orpMiliVolts, bool tempOk, bool adcOk
 {
   static bool everyOther = false;
   static int displayCount = 0;
-  char buf[16];
+  char bufConsole[64];
+  char bufDisplay[64];
 
   // show temperature in console
   Serial.print("temp: ");
   if(tempOk) {
-    snprintf(buf, sizeof(buf), "%.1f", temperature);
-    Serial.print(buf);
+    snprintf(bufConsole, sizeof(bufConsole), "%.1f", temperature);
+    Serial.print(bufConsole);
+
+    snprintf(bufDisplay + 1, 6, "%5.1f", temperature);
   } else {
     Serial.print("ERR");
+    snprintf(bufDisplay + 1, 6, "TErr");
   }
 
   // show orp in console
   Serial.print(", orp: ");
   if(adcOk) {
-    snprintf(buf, sizeof(buf), "%d", orpMiliVolts);
-    Serial.println(buf);
+    snprintf(bufConsole, sizeof(bufConsole), "%d", orpMiliVolts);
+    Serial.println(bufConsole);
+
+    if(orpMiliVolts < -999) {   // intentionally limit orp for display
+      orpMiliVolts = -999;
+      Serial.println("orp limited to -999 on display");
+    }
+
+    snprintf(bufDisplay + 6, 6, "%4d", orpMiliVolts);
   } else {
     Serial.println("ERR");
-  }
-
-  if(tempOk) {  // temperature reading was ok?
-    snprintf(buf + 1, 6, "%5.1f", temperature);
-  } else {
-    snprintf(buf + 1, 6, "TErr");
-  }
-
-  if(adcOk) {   // ADC reading was ok?
-    snprintf(buf + 6, 6, "%4d", orpMiliVolts);
-  } else {
-    snprintf(buf + 6, 6, "OErr");
+    snprintf(bufDisplay + 6, 6, "OErr");
   }
 
   // if this is !everyOther, then we're going to show string from 1st character
-  char* bfr = buf + 1;
+  char* bfr = bufDisplay + 1;
 
   // if this is everyOther, then we're going to show string from 0th character, with added '.' between 0th and 1st character
   if(everyOther) {
-    buf[0] = buf[1];    // move char from 1st to 0th char
-    buf[1] = '.';       // 1st char becomes a dot
-    bfr = buf;          // show from 0th char
+    bufDisplay[0] = bufDisplay[1];    // move char from 1st to 0th char
+    bufDisplay[1] = '.';       // 1st char becomes a dot
+    bfr = bufDisplay;          // show from 0th char
   }
 
   // every few seconds reinitialize display to make it work after display disconnect and reconnect
@@ -284,13 +284,70 @@ bool isAdcConnected(uint8_t address)
 }
 
 uint32_t lastLoopMs = 0;
+uint32_t lastAdcMs = 0;
+bool adcOk = false;
+
+#define ADC_VALUES_SIZE   10
+int32_t adcValues[ADC_VALUES_SIZE];
+
+void getADCValueIntoArray(void)
+{
+  adcOk = isAdcConnected(ADS_I2C_ADDRESS);
+
+  if(!adcOk) {
+    return;
+  }
+
+  int32_t adcValue = ads.readADC_Differential_0_1();  // read from adc
+
+  for(int i=0; i < (ADC_VALUES_SIZE - 1); i++) {    // move values back
+    adcValues[i] = adcValues[i + 1];
+  }
+
+  adcValues[ADC_VALUES_SIZE - 1] = adcValue;        // store latest value to last position
+}
+
+int calcAdcAverage(void)
+{
+  // low-pass filter for stable ORP display
+  int32_t adcSum = 0;
+
+  for (int i = 0; i < ADC_VALUES_SIZE; i++) {
+      adcSum += adcValues[i];
+  }
+
+  float multiplier = 0.0625f;           // ADS1115  @ 2x gain +/- 2.048V gain (16-bit results)
+  int32_t average = adcSum / ADC_VALUES_SIZE;
+  int orpMiliVolts = roundf(average * multiplier);
+
+  return orpMiliVolts;
+}
+
+void showAdcValues(void)
+{
+  Serial.print("adcValues:");
+  for (int i = 0; i < ADC_VALUES_SIZE; i++) {
+    Serial.print(' ');
+    Serial.print(adcValues[i]);
+  }
+  Serial.println();
+}
 
 void loop()
 {
+  // do a ADC measurement every 200 ms
   uint32_t now = millis();
-  uint32_t diff = now - lastLoopMs;
+  uint32_t diff = now - lastAdcMs;
 
-  if(diff < 1000) {                 // less than second ago? do nothing
+  if(diff >= 200) {
+    lastAdcMs = now;
+    getADCValueIntoArray();
+  }
+
+  // do the rest of the loop (temp measurement, showing, sending) only once per second
+  now = millis();
+  diff = now - lastLoopMs;
+  if(diff < 1000) {
     delay(100);
     return;
   }
@@ -304,21 +361,13 @@ void loop()
     tempOk = false;
   }
 
-  bool adcOk = isAdcConnected(ADS_I2C_ADDRESS);
-  int orpMiliVolts = 0;
-
-  if(adcOk) {
-    float multiplier = 0.0625f;           // ADS1115  @ 2x gain +/- 2.048V gain (16-bit results)
-
-    // low-pass filter for stable ORP display
-    int32_t adcAccum = 0;
-    for (int i = 0; i < 5; i++) {
-        adcAccum += ads.readADC_Differential_0_1();
-        delay(5);
-    }
-    int16_t results = adcAccum / 5;
-    orpMiliVolts = roundf(results * multiplier);
-  }
+  // from the last few values calculate average value
+  showAdcValues();
+  int orpMiliVolts = calcAdcAverage();
+  Serial.print("orpMiliVolts: ");
+  Serial.print(orpMiliVolts);
+  Serial.print(", adcOk: ");
+  Serial.println(adcOk);
 
   // report state via esp-now every now and then
   reportViaEspNow(temperature, orpMiliVolts, tempOk, adcOk);
