@@ -223,6 +223,8 @@ void showTempAndOrp(float temperature, int orpMiliVolts, bool tempOk, bool adcOk
   char bufConsole[64];
   char bufDisplay[64];
 
+  int orpPosition = 6;
+
   // show temperature in console
   Serial.print("temp: ");
   if(tempOk) {
@@ -230,9 +232,11 @@ void showTempAndOrp(float temperature, int orpMiliVolts, bool tempOk, bool adcOk
     Serial.print(bufConsole);
 
     snprintf(bufDisplay + 1, 6, "%5.1f", temperature);
+    orpPosition = 6;
   } else {
     Serial.print("ERR");
     snprintf(bufDisplay + 1, 6, "TErr");
+    orpPosition = 5;
   }
 
   // show orp in console
@@ -246,10 +250,10 @@ void showTempAndOrp(float temperature, int orpMiliVolts, bool tempOk, bool adcOk
       Serial.println("orp limited to -999 on display");
     }
 
-    snprintf(bufDisplay + 6, 6, "%4d", orpMiliVolts);
+    snprintf(bufDisplay + orpPosition, 6, "%4d", orpMiliVolts);
   } else {
     Serial.println("ERR");
-    snprintf(bufDisplay + 6, 6, "OErr");
+    snprintf(bufDisplay + orpPosition, 6, "OErr");
   }
 
   // if this is !everyOther, then we're going to show string from 1st character

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from flask import Flask, jsonify, request, send_from_directory
 from waitress import serve
 
-from sensor_tcp_ingest import connect_pg, load_dotenv
+from sensor_tcp_ingest import connect_pg, install_crash_logging, load_dotenv, set_process_name
 
 
 def setup_logging() -> logging.Logger:
@@ -703,6 +703,13 @@ def create_app() -> Flask:
 
 
 def main() -> int:
+    set_process_name("sensor_api_server")
+    logger = setup_logging()
+    install_crash_logging(
+        logger,
+        os.environ.get("API_LOG_FILE", "sensor_api_server.log"),
+        os.environ.get("API_FAULT_LOG_FILE"),
+    )
     app = create_app()
     host = os.environ.get("API_HOST", "0.0.0.0")
     port = int(os.environ.get("API_PORT", "20000"))

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
+import faulthandler
 import json
 import logging
 import os
 import socket
+import struct
 import subprocess
 import sys
 import threading
@@ -13,6 +15,27 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 _daily_alert_sent_on: Optional[date] = None
+_fault_log_fp = None
+_crash_logging_installed = False
+
+
+def set_process_name(name: str) -> None:
+    """Set the name shown by `ps -A` (Linux task comm, max 15 chars)."""
+    comm = name[:15]
+    try:
+        with open("/proc/self/comm", "w", encoding="ascii", errors="replace") as f:
+            f.write(comm)
+    except OSError:
+        pass
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        pr_set_name = 15
+        buf = ctypes.create_string_buffer(comm.encode("ascii", "replace"))
+        libc.prctl(pr_set_name, buf, 0, 0, 0)
+    except Exception:
+        pass
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -64,6 +87,67 @@ def setup_logging() -> logging.Logger:
     logger.addHandler(stderr_handler)
 
     return logger
+
+
+def _fault_log_path(log_file: str) -> str:
+    base, ext = os.path.splitext(log_file)
+    if ext.lower() == ".log":
+        return base + ".fault.log"
+    return log_file + ".fault.log"
+
+
+def install_crash_logging(
+    logger: logging.Logger,
+    log_file: str,
+    fault_log_file: Optional[str] = None,
+) -> None:
+    """Log uncaught exceptions (main + threads) and enable faulthandler dumps."""
+    global _fault_log_fp, _crash_logging_installed
+    if _crash_logging_installed:
+        return
+    _crash_logging_installed = True
+
+    fault_path = fault_log_file or _fault_log_path(log_file)
+    try:
+        _fault_log_fp = open(fault_path, "ab", buffering=0)
+        faulthandler.enable(file=_fault_log_fp, all_threads=True)
+        logger.info("faulthandler enabled, dumps to %s", fault_path)
+    except OSError as e:
+        _fault_log_fp = None
+        logger.warning("faulthandler not enabled (%s): %s", fault_path, e)
+
+    def _flush_logs() -> None:
+        for handler in logger.handlers:
+            try:
+                handler.flush()
+            except Exception:
+                pass
+        if _fault_log_fp is not None:
+            try:
+                _fault_log_fp.flush()
+            except Exception:
+                pass
+
+    def _excepthook(exc_type, exc, tb) -> None:
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc, tb)
+            return
+        logger.error("uncaught exception", exc_info=(exc_type, exc, tb))
+        _flush_logs()
+
+    def _thread_excepthook(args) -> None:
+        if args.exc_type is None or issubclass(args.exc_type, (SystemExit, KeyboardInterrupt)):
+            return
+        thread_name = args.thread.name if args.thread is not None else "unknown"
+        logger.error(
+            "uncaught exception in thread %s",
+            thread_name,
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+        )
+        _flush_logs()
+
+    sys.excepthook = _excepthook
+    threading.excepthook = _thread_excepthook
 
 
 def get_db_config() -> Dict[str, str]:
@@ -119,8 +203,8 @@ def _run_daily_alert_curl(body: str, url: str, logger: logging.Logger) -> None:
             logger.info("daily alert curl ok")
     except subprocess.TimeoutExpired:
         logger.warning("daily alert curl timed out after 5s")
-    except Exception as e:
-        logger.warning("daily alert curl error: %s", e)
+    except Exception:
+        logger.exception("daily alert curl error")
 
 
 def send_sensor_daily_alert(conn, logger: logging.Logger) -> None:
@@ -182,8 +266,8 @@ def maybe_send_daily_sensor_alert(conn, logger: logging.Logger) -> None:
     try:
         send_sensor_daily_alert(conn, logger)
         _daily_alert_sent_on = date.today()
-    except Exception as e:
-        logger.warning("daily sensor alert failed: %s", e)
+    except Exception:
+        logger.exception("daily sensor alert failed")
 
 
 def parse_json_line(line: str) -> Optional[dict]:
@@ -276,6 +360,34 @@ def read_orp_settings(conn) -> Tuple[Optional[float], Optional[float]]:
     )
 
 
+# linux/tcp.h: 8-byte header + 9 u32s, then last_data_sent, last_ack_sent, last_data_recv.
+_TCP_INFO_LAST_DATA_RECV_OFF = 52
+_TCP_INFO_AGE_MS_MAX = 7 * 24 * 3600 * 1000
+
+
+def socket_recv_datetime(sock: socket.socket) -> Tuple[datetime, Optional[int]]:
+    """
+    Wall time when the kernel last received TCP payload on this socket.
+
+    Uses TCP_INFO.tcpi_last_data_recv (ms ago). That clock is updated when the
+    segment arrives, not when userspace reads, so data that sat in the accept
+    queue still gets its original receive time.
+    Returns (datetime, age_ms). age_ms is None if TCP_INFO was unavailable.
+    """
+    now = datetime.now().astimezone()
+    try:
+        tcp_info = getattr(socket, "TCP_INFO", 11)
+        raw = sock.getsockopt(socket.IPPROTO_TCP, tcp_info, 256)
+        if len(raw) >= _TCP_INFO_LAST_DATA_RECV_OFF + 4:
+            age_ms = struct.unpack_from("<I", raw, _TCP_INFO_LAST_DATA_RECV_OFF)[0]
+            if 0 < age_ms < _TCP_INFO_AGE_MS_MAX:
+                return now - timedelta(milliseconds=age_ms), age_ms
+            return now, age_ms
+    except OSError:
+        pass
+    return now, None
+
+
 def insert_orp_raw(
     conn,
     logger: logging.Logger,
@@ -284,12 +396,13 @@ def insert_orp_raw(
     orp_offset: Optional[float],
     temp: Optional[float],
     ph: Optional[float],
+    received_at: datetime,
 ) -> None:
     sql = (
-        "INSERT INTO orp_raw (sensor_id, orp_mv, orp_offset, temp, ph) "
-        "VALUES (%s, %s, %s, %s, %s);"
+        "INSERT INTO orp_raw (datetime, sensor_id, orp_mv, orp_offset, temp, ph) "
+        "VALUES (%s, %s, %s, %s, %s, %s);"
     )
-    params = (sensor_id, orp_mv, orp_offset, temp, ph)
+    params = (received_at, sensor_id, orp_mv, orp_offset, temp, ph)
     logger.info("SQL: %s params=%s", sql, params)
     with conn.cursor() as cur:
         cur.execute(sql, params)
@@ -314,22 +427,27 @@ def _closest_value(
     return rows[i][0], rows[i][1], rows[i][2], i
 
 
-def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> None:
+def aggregate_today_for_sensor(
+    conn, logger: logging.Logger, sensor_id: int, received_at: datetime
+) -> None:
     """
-    Builds 96 values (15-min intervals) for today's date and upserts into temps_aggr.
+    Builds 96 values (15-min intervals) for received_at's date and upserts into temps_aggr.
     """
     with conn.cursor() as cur:
-        cur.execute("SELECT EXTRACT(EPOCH FROM date_trunc('day', now()))::bigint;")
+        cur.execute(
+            "SELECT EXTRACT(EPOCH FROM date_trunc('day', %s::timestamptz))::bigint;",
+            (received_at,),
+        )
         midnight_epoch = int(cur.fetchone()[0])
 
         cur.execute(
             """
             SELECT EXTRACT(EPOCH FROM datetime)::bigint AS ts, temp, humidity
             FROM temps_raw
-            WHERE sensor_id = %s AND datetime::date = CURRENT_DATE
+            WHERE sensor_id = %s AND datetime::date = (%s::timestamptz)::date
             ORDER BY datetime ASC;
             """,
-            (sensor_id,),
+            (sensor_id, received_at),
         )
         rows: List[Tuple[int, Optional[float], Optional[int]]] = list(cur.fetchall())
         cur.execute(
@@ -337,12 +455,12 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
             SELECT battery
             FROM temps_raw
             WHERE sensor_id = %s
-              AND datetime::date = CURRENT_DATE
+              AND datetime::date = (%s::timestamptz)::date
               AND battery IS NOT NULL
             ORDER BY datetime DESC
             LIMIT 1;
             """,
-            (sensor_id,),
+            (sensor_id, received_at),
         )
         battery_row = cur.fetchone()
         latest_battery: Optional[float] = battery_row[0] if battery_row else None
@@ -379,7 +497,7 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
 
     sql = """
     INSERT INTO temps_aggr (day, sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, battery, temps, humidities)
-    VALUES (CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES ((%s::timestamptz)::date, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (day, sensor_id) DO UPDATE
       SET t_min = EXCLUDED.t_min,
           t_max = EXCLUDED.t_max,
@@ -391,13 +509,29 @@ def aggregate_today_for_sensor(conn, logger: logging.Logger, sensor_id: int) -> 
           temps = EXCLUDED.temps,
           humidities = EXCLUDED.humidities;
     """
-    params = (sensor_id, t_min, t_max, t_avg, h_min, h_max, h_avg, latest_battery, temps_str, hum_str)
+    params = (
+        received_at,
+        sensor_id,
+        t_min,
+        t_max,
+        t_avg,
+        h_min,
+        h_max,
+        h_avg,
+        latest_battery,
+        temps_str,
+        hum_str,
+    )
     logger.info("SQL: %s params=%s", " ".join(sql.split()), params)
 
     with conn.cursor() as cur:
         cur.execute(sql, params)
     conn.commit()
-    logger.info("aggregation upserted for sensor_id=%s day=%s", sensor_id, date.today().isoformat())
+    logger.info(
+        "aggregation upserted for sensor_id=%s day=%s",
+        sensor_id,
+        received_at.date().isoformat(),
+    )
 
 
 def insert_temp_raw(
@@ -407,13 +541,26 @@ def insert_temp_raw(
     temp: Optional[float],
     humidity: Optional[int],
     battery: Optional[float],
+    received_at: datetime,
 ) -> None:
-    sql = "INSERT INTO temps_raw (sensor_id, temp, humidity, battery) VALUES (%s, %s, %s, %s);"
-    params = (sensor_id, temp, humidity, battery)
+    sql = (
+        "INSERT INTO temps_raw (datetime, sensor_id, temp, humidity, battery) "
+        "VALUES (%s, %s, %s, %s, %s);"
+    )
+    params = (received_at, sensor_id, temp, humidity, battery)
     logger.info("SQL: %s params=%s", sql, params)
     with conn.cursor() as cur:
         cur.execute(sql, params)
     conn.commit()
+
+
+def get_client_timeout() -> float:
+    raw = os.environ.get("CLIENT_TIMEOUT", "10")
+    try:
+        timeout = float(raw)
+    except ValueError:
+        timeout = 10.0
+    return timeout if timeout > 0 else 10.0
 
 
 def handle_connection(
@@ -427,7 +574,9 @@ def handle_connection(
     Returns True if at least one valid JSON line was received (regardless of type).
     """
     got_json = False
+    timeout_s = get_client_timeout()
     try:
+        client_sock.settimeout(timeout_s)
         with client_sock:
             logger.info("client connected: %s", client_addr)
             f = client_sock.makefile("r", encoding="utf-8", newline="\n")
@@ -438,6 +587,14 @@ def handle_connection(
                     if obj is None:
                         continue
                     got_json = True
+                    received_at, age_ms = socket_recv_datetime(client_sock)
+                    if age_ms is not None and age_ms >= 2000:
+                        logger.info(
+                            "using kernel rx time %s (%ss before now) for %s",
+                            received_at.isoformat(timespec="seconds"),
+                            round(age_ms / 1000, 1),
+                            client_addr,
+                        )
 
                     msg_type = obj.get("type")
                     if msg_type == "temp_sensor":
@@ -446,16 +603,21 @@ def handle_connection(
                             break
 
                         sensor_id, temp, humidity, battery = payload
-                        insert_temp_raw(conn_pg, logger, sensor_id, temp, humidity, battery)
+                        insert_temp_raw(
+                            conn_pg, logger, sensor_id, temp, humidity, battery, received_at
+                        )
 
                         now_ts = int(time.time())
                         last_ts = last_agg_by_sensor.get(sensor_id, 0)
-                        if now_ts - last_ts >= 15 * 60:
+                        delayed = age_ms is not None and age_ms >= 30_000
+                        if delayed or now_ts - last_ts >= 15 * 60:
                             last_agg_by_sensor[sensor_id] = now_ts
                             try:
-                                aggregate_today_for_sensor(conn_pg, logger, sensor_id)
-                            except Exception as e:
-                                logger.warning("aggregation failed for sensor_id=%s: %s", sensor_id, e)
+                                aggregate_today_for_sensor(
+                                    conn_pg, logger, sensor_id, received_at
+                                )
+                            except Exception:
+                                logger.exception("aggregation failed for sensor_id=%s", sensor_id)
                     elif msg_type == "orp_sensor":
                         payload = coerce_orp_sensor_payload(obj)
                         if payload is None:
@@ -463,10 +625,14 @@ def handle_connection(
 
                         sensor_id, orp_mv, temp = payload
                         orp_offset, ph = read_orp_settings(conn_pg)
-                        insert_orp_raw(conn_pg, logger, sensor_id, orp_mv, orp_offset, temp, ph)
+                        insert_orp_raw(
+                            conn_pg, logger, sensor_id, orp_mv, orp_offset, temp, ph, received_at
+                        )
                     break
-    except Exception as e:
-        logger.warning("connection %s error: %s", client_addr, e)
+    except socket.timeout:
+        logger.warning("connection %s timed out waiting for data after %ss", client_addr, timeout_s)
+    except Exception:
+        logger.exception("connection %s error", client_addr)
     finally:
         logger.info("client disconnected: %s", client_addr)
     maybe_send_daily_sensor_alert(conn_pg, logger)
@@ -475,7 +641,13 @@ def handle_connection(
 
 def main() -> int:
     global _daily_alert_sent_on
+    set_process_name("sensor_tcp_ingest")
     logger = setup_logging()
+    install_crash_logging(
+        logger,
+        os.environ.get("LOG_FILE", "sensor_tcp_ingest.log"),
+        os.environ.get("FAULT_LOG_FILE"),
+    )
     conn_pg = connect_pg()
     conn_pg.autocommit = False
     last_agg_by_sensor: Dict[int, int] = {}
@@ -484,8 +656,8 @@ def main() -> int:
         try:
             send_sensor_daily_alert(conn_pg, logger)
             _daily_alert_sent_on = date.today()
-        except Exception as e:
-            logger.warning("initial daily sensor alert failed: %s", e)
+        except Exception:
+            logger.exception("initial daily sensor alert failed")
 
     listen_host = os.environ.get("LISTEN_HOST", "0.0.0.0")
     listen_port = int(os.environ.get("LISTEN_PORT", "22222"))
@@ -500,8 +672,8 @@ def main() -> int:
             client_sock, client_addr = s.accept()
             try:
                 _ = handle_connection(conn_pg, logger, last_agg_by_sensor, client_sock, client_addr)
-            except Exception as e:
-                logger.warning("handler error from %s: %s", client_addr, e)
+            except Exception:
+                logger.exception("handler error from %s", client_addr)
                 try:
                     conn_pg.rollback()
                 except Exception:
@@ -513,7 +685,7 @@ def main() -> int:
                         cur.execute("SELECT 1;")
                     conn_pg.commit()
                 except Exception:
-                    logger.warning("DB connection lost; reconnecting")
+                    logger.exception("DB connection lost; reconnecting")
                     try:
                         conn_pg.close()
                     except Exception:
