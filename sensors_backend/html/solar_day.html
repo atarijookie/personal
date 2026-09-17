@@ -42,7 +42,7 @@
         <div class="muted" style="margin-bottom: 8px;"><b id="latestTitle">Latest</b></div>
         <div class="muted" style="margin-bottom: 8px;">
           Grid: +import / −export<br />
-          Battery: +charge / −discharge
+          Battery: +discharge / −charge
         </div>
         <div id="latest"></div>
       </div>
@@ -471,7 +471,7 @@
       function houseMix(p) {
         const house = Math.max(0, numOrZero(p.house_load_power_w));
         const pv = Math.max(0, numOrZero(p.pv_power_w));
-        const discharge = Math.max(0, -numOrZero(p.battery_power_w));
+        const discharge = Math.max(0, numOrZero(p.battery_power_w));
         let remain = house;
         const solar = Math.min(pv, remain);
         remain -= solar;
