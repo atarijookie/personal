@@ -423,6 +423,74 @@ def create_app() -> Flask:
             except Exception:
                 pass
 
+    @app.post("/api/solar_day")
+    def solar_day():
+        """
+        Body JSON: { "day": "YYYY-MM-DD" }
+        Returns:
+          {
+            "day": "YYYY-MM-DD",
+            "points": [
+              {
+                "ts": "<ISO-8601 timestamptz>",
+                "pv_power_w": 0.0,
+                "grid_power_w": 12.0,
+                "battery_power_w": 87.0,
+                "house_load_power_w": 12.0,
+                "battery_soc_pct": 100.0
+              },
+              ...
+            ]
+          }
+        """
+        logger.info("endpoint hit: /api/solar_day")
+        data = request.get_json(silent=True) or {}
+        day_raw = data.get("day")
+
+        if not isinstance(day_raw, str):
+            return jsonify({"error": "day must be a string like YYYY-MM-DD"}), 400
+
+        try:
+            day = datetime.strptime(day_raw, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "day must be in format YYYY-MM-DD"}), 400
+
+        conn = connect_pg()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT datetime, pv_power_w, grid_power_w, battery_power_w,
+                           house_load_power_w, battery_soc_pct
+                    FROM solar_raw
+                    WHERE datetime::date = %s::date
+                    ORDER BY datetime ASC;
+                    """,
+                    (day,),
+                )
+                rows = list(cur.fetchall())
+
+            points: List[Dict[str, Any]] = []
+            for dt, pv_w, grid_w, bat_w, load_w, soc in rows:
+                ts_str = dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+                points.append(
+                    {
+                        "ts": ts_str,
+                        "pv_power_w": float(pv_w) if pv_w is not None else None,
+                        "grid_power_w": float(grid_w) if grid_w is not None else None,
+                        "battery_power_w": float(bat_w) if bat_w is not None else None,
+                        "house_load_power_w": float(load_w) if load_w is not None else None,
+                        "battery_soc_pct": float(soc) if soc is not None else None,
+                    }
+                )
+
+            return jsonify({"day": day.isoformat(), "points": points})
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
     @app.post("/api/temp_month")
     def temp_month():
         """

@@ -21,6 +21,10 @@ fi
 : "${API_PID_FILE:=sensor_api_server.pid}"
 : "${API_LOG_FILE:=sensor_api_server.log}"
 
+: "${SOLAR_SCRIPT:=solar_ingest.py}"
+: "${SOLAR_PID_FILE:=solar_ingest.pid}"
+: "${SOLAR_LOG_FILE:=solar_ingest.log}"
+
 py_bin="${VENV_DIR}/bin/python"
 pip_bin="${VENV_DIR}/bin/pip"
 
@@ -31,7 +35,7 @@ ensure_venv() {
 }
 
 deps_met() {
-  "$py_bin" -c "import psycopg2; import flask; import waitress" >/dev/null 2>&1
+  "$py_bin" -c "import psycopg2; import flask; import waitress; import pysolarmanv5" >/dev/null 2>&1
 }
 
 install_deps_if_needed() {
@@ -75,6 +79,7 @@ install_deps_if_needed
 
 tcp_running=false
 api_running=false
+solar_running=false
 
 if is_running_pidfile "$PID_FILE" || is_running_pattern "python.*${SERVER_SCRIPT}"; then
   tcp_running=true
@@ -84,7 +89,11 @@ if is_running_pidfile "$API_PID_FILE" || is_running_pattern "python.*${API_SCRIP
   api_running=true
 fi
 
-if [[ "$tcp_running" == "true" && "$api_running" == "true" ]]; then
+if is_running_pidfile "$SOLAR_PID_FILE" || is_running_pattern "python.*${SOLAR_SCRIPT}"; then
+  solar_running=true
+fi
+
+if [[ "$tcp_running" == "true" && "$api_running" == "true" && "$solar_running" == "true" ]]; then
   echo "Servers already running. Nothing to do."
   exit 0
 fi
@@ -101,5 +110,12 @@ if [[ "$api_running" != "true" ]]; then
   echo "Flask API started (pid $(cat "$API_PID_FILE")). Logs: $API_LOG_FILE"
 else
   echo "Flask API already running. Skipping."
+fi
+
+if [[ "$solar_running" != "true" ]]; then
+  start_server "$SOLAR_SCRIPT" "$SOLAR_LOG_FILE" "$SOLAR_PID_FILE"
+  echo "Solar ingester started (pid $(cat "$SOLAR_PID_FILE")). Logs: $SOLAR_LOG_FILE"
+else
+  echo "Solar ingester already running. Skipping."
 fi
 

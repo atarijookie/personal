@@ -13,6 +13,7 @@ fi
 
 : "${PID_FILE:=sensor_tcp_ingest.pid}"
 : "${API_PID_FILE:=sensor_api_server.pid}"
+: "${SOLAR_PID_FILE:=solar_ingest.pid}"
 
 stop_by_pidfile() {
   local pid_file="$1"
@@ -56,4 +57,5 @@ stop_by_pidfile() {
 
 stop_by_pidfile "$PID_FILE" "TCP ingester"
 stop_by_pidfile "$API_PID_FILE" "Flask API"
+stop_by_pidfile "$SOLAR_PID_FILE" "Solar ingester"
 

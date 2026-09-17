@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solar daily</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+      h1 { margin: 0 0 12px 0; }
+      #status { color: #444; margin: 8px 0 16px 0; }
+      .device { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+      .muted { color: #666; font-size: 12px; }
+      .err { color: #b00020; }
+      .panels { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+      .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; max-width: 520px; min-width: 260px; flex: 1; }
+      .latest-row { justify-content: space-between; }
+      .latest-vals { white-space: nowrap; }
+      .row { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px 0; }
+      input[type="date"] { padding: 6px 8px; }
+      button { padding: 6px 10px; border: 1px solid #ddd; background: #f7f7f7; border-radius: 8px; cursor: pointer; }
+      button:hover { background: #f0f0f0; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button:disabled:hover { background: #f7f7f7; }
+      canvas { border: 1px solid #eee; border-radius: 10px; background: #fff; }
+      h2.chart-section { margin-top: 28px; }
+    </style>
+  </head>
+  <body>
+    <h1>Solar daily</h1>
+    <div id="status" class="muted">Loading…</div>
+
+    <div class="row">
+      <label for="day"><b>Day</b></label>
+      <button id="prevDay" type="button" title="Previous day">◀</button>
+      <input id="day" type="date" />
+      <button id="nextDay" type="button" title="Next day" disabled>▶</button>
+      <a href="/" class="muted" style="margin-left: 10px;">Back</a>
+    </div>
+
+    <div class="panels">
+      <div class="box" id="latestBox">
+        <div class="muted" style="margin-bottom: 8px;"><b id="latestTitle">Latest</b></div>
+        <div class="muted" style="margin-bottom: 8px;">
+          Grid: +import / −export<br />
+          Battery: +charge / −discharge
+        </div>
+        <div id="latest"></div>
+      </div>
+    </div>
+
+    <h2 class="chart-section">House load</h2>
+    <div class="muted" style="margin: -18px 0 8px 0;">Required power, stacked from solar, then battery discharge, then grid</div>
+    <canvas id="chartPower" width="980" height="500"></canvas>
+
+    <h2 class="chart-section">House mix</h2>
+    <div class="muted" style="margin: -18px 0 8px 0;">Same stack, normalized so house load is 100%</div>
+    <canvas id="chartMix" width="980" height="460"></canvas>
+
+    <h2 class="chart-section">Battery SOC</h2>
+    <canvas id="chartSoc" width="980" height="280"></canvas>
+
+    <script>
+      const POWER_METRICS = [
+        { key: "pv_power_w", label: "Solar", color: "#f9a825" },
+        { key: "grid_power_w", label: "Grid", color: "#1976d2" },
+        { key: "battery_power_w", label: "Battery", color: "#388e3c" },
+        { key: "house_load_power_w", label: "House", color: "#111111" },
+      ];
+      const HOUSE_LAYERS = [
+        { key: "solar", label: "Solar", color: "#f9a825" },
+        { key: "battery", label: "Battery", color: "#388e3c" },
+        { key: "grid", label: "Grid", color: "#1976d2" },
+      ];
+      const HOUSE_LINE = { label: "House", color: "#111111" };
+      const SOC_METRIC = { key: "battery_soc_pct", label: "Battery SOC", color: "#7b1fa2" };
+
+      let solarDayData = null;
+      let hoverPowerMs = null;
+      let hoverMixMs = null;
+      let hoverSocMs = null;
+
+      function todayIso() {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function isoToLocalDate(iso) {
+        const [y, m, d] = iso.split("-").map(n => parseInt(n, 10));
+        return new Date(y, m - 1, d);
+      }
+
+      function localDateToIso(d) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function shiftDay(deltaDays) {
+        const dayEl = document.getElementById("day");
+        const cur = dayEl.value || todayIso();
+        const d = isoToLocalDate(cur);
+        d.setDate(d.getDate() + deltaDays);
+        const next = localDateToIso(d);
+        if (deltaDays > 0 && next > todayIso()) return;
+        dayEl.value = next;
+        fetchSolarDay();
+      }
+
+      function updateNextDayButton() {
+        const day = document.getElementById("day").value || todayIso();
+        document.getElementById("nextDay").disabled = day >= todayIso();
+      }
+
+      /** Košice, SK — WGS84; sun math from SunCalc (c) Vladimir Agafonkin, BSD-2-Clause */
+      const KOSICE_LAT = 48.721;
+      const KOSICE_LNG = 21.258;
+
+      const kosiceSolarDayTimes = (() => {
+        const PI = Math.PI,
+          sin = Math.sin,
+          cos = Math.cos,
+          tan = Math.tan,
+          asin = Math.asin,
+          atan = Math.atan2,
+          acos = Math.acos,
+          rad = PI / 180;
+        const dayMs = 86400000,
+          J1970 = 2440588,
+          J2000 = 2451545;
+        const e = rad * 23.4397;
+
+        function toJulian(date) {
+          return date.valueOf() / dayMs - 0.5 + J1970;
+        }
+        function fromJulian(j) {
+          return new Date((j + 0.5 - J1970) * dayMs);
+        }
+        function toDays(date) {
+          return toJulian(date) - J2000;
+        }
+
+        function rightAscension(l, b) {
+          return atan(sin(l) * cos(e) - tan(b) * sin(e), cos(l));
+        }
+        function declination(l, b) {
+          return asin(sin(b) * cos(e) + cos(b) * sin(e) * sin(l));
+        }
+
+        function solarMeanAnomaly(d) {
+          return rad * (357.5291 + 0.98560028 * d);
+        }
+        function eclipticLongitude(M) {
+          const C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)),
+            P = rad * 102.9372;
+          return M + C + P + PI;
+        }
+
+        const times = [
+          [-0.833, "sunrise", "sunset"],
+          [-6, "dawn", "dusk"],
+          [-18, "nightEnd", "night"],
+        ];
+        const J0 = 0.0009;
+
+        function julianCycle(d, lw) {
+          return Math.round(d - J0 - lw / (2 * PI));
+        }
+        function approxTransit(Ht, lw, n) {
+          return J0 + (Ht + lw) / (2 * PI) + n;
+        }
+        function solarTransitJ(ds, M, L) {
+          return J2000 + ds + 0.0053 * sin(M) - 0.0069 * sin(2 * L);
+        }
+        function hourAngle(h, phi, d) {
+          return acos((sin(h) - sin(phi) * sin(d)) / (cos(phi) * cos(d)));
+        }
+        function observerAngle(height) {
+          return (-2.076 * Math.sqrt(height || 0)) / 60;
+        }
+        function getSetJ(h, lw, phi, dec, n, M, L) {
+          const w = hourAngle(h, phi, dec),
+            a = approxTransit(w, lw, n);
+          return solarTransitJ(a, M, L);
+        }
+
+        function getTimes(date, lat, lng, height) {
+          const lw = rad * -lng,
+            phi = rad * lat,
+            dh = observerAngle(height),
+            d = toDays(date),
+            n = julianCycle(d, lw),
+            ds = approxTransit(0, lw, n),
+            M = solarMeanAnomaly(ds),
+            L = eclipticLongitude(M),
+            dec = declination(L, 0),
+            Jnoon = solarTransitJ(ds, M, L),
+            result = { solarNoon: fromJulian(Jnoon), nadir: fromJulian(Jnoon - 0.5) };
+          for (const time of times) {
+            const h0 = (time[0] + dh) * rad;
+            const Jset = getSetJ(h0, lw, phi, dec, n, M, L);
+            const Jrise = Jnoon - (Jset - Jnoon);
+            result[time[1]] = fromJulian(Jrise);
+            result[time[2]] = fromJulian(Jset);
+          }
+          return result;
+        }
+
+        return function kosiceSolarDayTimesInner(isoDay) {
+          const [y, m, d] = isoDay.split("-").map(n => parseInt(n, 10));
+          if (!y || !m || !d) return null;
+          const ref = new Date(y, m - 1, d, 12, 0, 0, 0);
+          return getTimes(ref, KOSICE_LAT, KOSICE_LNG, 0);
+        };
+      })();
+
+      function solarInstantMs(d) {
+        if (!d || !(d instanceof Date)) return null;
+        const t = d.getTime();
+        return Number.isFinite(t) ? t : null;
+      }
+
+      function dayBoundsMs(isoDay) {
+        const [y, m, d] = isoDay.split("-").map(n => parseInt(n, 10));
+        const start = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+        const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0).getTime();
+        return { start, end, span: end - start };
+      }
+
+      function timeMsFromMouseFrac(frac) {
+        const iso = document.getElementById("day").value;
+        const { start, span } = dayBoundsMs(iso);
+        return start + frac * span;
+      }
+
+      function xForTimeMs(canvas, tMs) {
+        const { left, w } = chartGeometry(canvas);
+        const iso = document.getElementById("day").value;
+        const { start, span } = dayBoundsMs(iso);
+        return left + ((tMs - start) / span) * w;
+      }
+
+      function formatTimeLabel(tMs) {
+        const d = new Date(tMs);
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        const ss = String(d.getSeconds()).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+      }
+
+      function nearestPoint(points, timeMs) {
+        const pts = points || [];
+        if (!pts.length) return null;
+        let best = null;
+        let bestD = Infinity;
+        for (const p of pts) {
+          const tm = Date.parse(p.ts);
+          if (Number.isNaN(tm)) continue;
+          const d = Math.abs(tm - timeMs);
+          if (d < bestD) {
+            bestD = d;
+            best = p;
+          }
+        }
+        return best;
+      }
+
+      function chartGeometry(canvas) {
+        const left = 58, right = 20, top = 36, bottom = 30;
+        const w = canvas.width - left - right;
+        const h = canvas.height - top - bottom;
+        return { left, right, top, bottom, w, h };
+      }
+
+      function drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, linesOnly) {
+        const st = kosiceSolarDayTimes(dayIso);
+        if (!st) return;
+        const dayEnd = dayStart + daySpan;
+        const marks = [
+          { t: solarInstantMs(st.dawn), color: "#3949ab", dash: [4, 4], lab: "FL" },
+          { t: solarInstantMs(st.sunrise), color: "#e65100", dash: [], lab: "SR" },
+          { t: solarInstantMs(st.solarNoon), color: "#b71c1c", dash: [6, 3], lab: "max" },
+          { t: solarInstantMs(st.sunset), color: "#5d4037", dash: [], lab: "SS" },
+          { t: solarInstantMs(st.night), color: "#263238", dash: [4, 4], lab: "TD" },
+        ];
+        for (const m of marks) {
+          if (m.t === null || m.t < dayStart || m.t > dayEnd) continue;
+          const x = left + ((m.t - dayStart) / daySpan) * w;
+          const xr = Math.round(x) + 0.5;
+          if (linesOnly) {
+            ctx.save();
+            ctx.strokeStyle = m.color;
+            ctx.globalAlpha = 0.9;
+            ctx.lineWidth = m.lab === "max" ? 2 : 1.25;
+            ctx.setLineDash(m.dash);
+            ctx.beginPath();
+            ctx.moveTo(xr, top);
+            ctx.lineTo(xr, top + h);
+            ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.save();
+            ctx.font = "bold 9px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+            ctx.fillStyle = m.color;
+            const tw = ctx.measureText(m.lab).width;
+            let lx = x - tw / 2;
+            if (lx < left) lx = left;
+            if (lx + tw > left + w) lx = left + w - tw;
+            ctx.fillText(m.lab, lx, top + h + 22);
+            ctx.restore();
+          }
+        }
+      }
+
+      function strokeSmoothLineThroughPoints(ctx, points) {
+        if (!points || points.length === 0) return;
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+      }
+
+      function formatWatts(v) {
+        if (v === null || v === undefined) return "—";
+        const n = Number(v);
+        if (Number.isNaN(n)) return "—";
+        if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(2)} kW`;
+        return `${Math.round(n)} W`;
+      }
+
+      function formatSoc(v) {
+        if (v === null || v === undefined) return "—";
+        const n = Number(v);
+        if (Number.isNaN(n)) return "—";
+        return `${n.toFixed(1)}%`;
+      }
+
+      function lastPoint(points) {
+        const pts = [...(points || [])];
+        if (!pts.length) return null;
+        pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+        return pts[pts.length - 1];
+      }
+
+      function renderLatest() {
+        const box = document.getElementById("latestBox");
+        const dayEl = document.getElementById("day");
+        const isToday = (dayEl.value || todayIso()) === todayIso();
+        box.style.display = isToday ? "" : "none";
+        if (!isToday) return;
+
+        const el = document.getElementById("latest");
+        el.innerHTML = "";
+        const p = lastPoint(solarDayData && solarDayData.points);
+        let latestMs = null;
+        if (p) {
+          const tMs = Date.parse(p.ts);
+          if (!Number.isNaN(tMs)) latestMs = tMs;
+        }
+        const titleEl = document.getElementById("latestTitle");
+        titleEl.textContent = latestMs === null
+          ? "Latest"
+          : `Latest (${formatTimeLabel(latestMs)})`;
+
+        const rows = [
+          ...POWER_METRICS.map((m) => ({ label: m.label, value: p ? formatWatts(p[m.key]) : "—" })),
+          { label: SOC_METRIC.label, value: p ? formatSoc(p[SOC_METRIC.key]) : "—" },
+        ];
+        for (const r of rows) {
+          const row = document.createElement("div");
+          row.className = "device latest-row";
+          const name = document.createElement("span");
+          name.textContent = r.label;
+          const vals = document.createElement("span");
+          vals.className = "latest-vals";
+          vals.textContent = r.value;
+          row.appendChild(name);
+          row.appendChild(vals);
+          el.appendChild(row);
+        }
+      }
+
+      function roundedRectPath(ctx, x, y, w, h, r) {
+        const rr = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      }
+
+      function drawTooltip(ctx, canvas, tMs, lines) {
+        if (tMs === null || tMs === undefined) return;
+        if (tMs > Date.now()) return;
+        const geom = chartGeometry(canvas);
+        const x = xForTimeMs(canvas, tMs);
+        if (lines.length === 0) return;
+
+        ctx.save();
+        ctx.strokeStyle = "rgba(0,0,0,0.25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, geom.top);
+        ctx.lineTo(x, geom.top + geom.h);
+        ctx.stroke();
+
+        const header = `Time ${formatTimeLabel(tMs)}`;
+        const font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.font = font;
+
+        let width = ctx.measureText(header).width;
+        for (const l of lines) {
+          width = Math.max(width, ctx.measureText(`${l.label}  ${l.value}`).width + 18);
+        }
+        width = Math.min(width + 16, 380);
+
+        const height = 24 + lines.length * 16 + 10;
+        let bx = x + 10;
+        let by = geom.top + 10;
+        if (bx + width > canvas.width - 10) bx = x - width - 10;
+
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.strokeStyle = "rgba(0,0,0,0.15)";
+        ctx.lineWidth = 1;
+        roundedRectPath(ctx, bx, by, width, height, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#111";
+        ctx.fillText(header, bx + 10, by + 18);
+
+        let y = by + 36;
+        for (const l of lines) {
+          ctx.fillStyle = l.color;
+          ctx.fillRect(bx + 10, y - 10, 10, 10);
+          ctx.fillStyle = "#111";
+          ctx.fillText(l.label, bx + 26, y - 1);
+          ctx.fillStyle = "#555";
+          const valW = ctx.measureText(l.value).width;
+          ctx.fillText(l.value, bx + width - 10 - valW, y - 1);
+          y += 16;
+        }
+
+        ctx.restore();
+      }
+
+      function valueFromPoint(p, key) {
+        if (!p || p[key] === null || p[key] === undefined) return NaN;
+        return Number(p[key]);
+      }
+
+      function numOrZero(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function hexAlpha(hex, a) {
+        const h = hex.replace("#", "");
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        return `rgba(${r},${g},${b},${a})`;
+      }
+
+      /** Split house load into solar, then battery discharge, then grid. */
+      function houseMix(p) {
+        const house = Math.max(0, numOrZero(p.house_load_power_w));
+        const pv = Math.max(0, numOrZero(p.pv_power_w));
+        const discharge = Math.max(0, -numOrZero(p.battery_power_w));
+        let remain = house;
+        const solar = Math.min(pv, remain);
+        remain -= solar;
+        const battery = Math.min(discharge, remain);
+        remain -= battery;
+        return { house, solar, battery, grid: remain };
+      }
+
+      function fillBetween(ctx, xs, yTop, yBot) {
+        if (!xs.length) return;
+        ctx.beginPath();
+        ctx.moveTo(xs[0], yTop[0]);
+        for (let i = 1; i < xs.length; i++) ctx.lineTo(xs[i], yTop[i]);
+        for (let i = xs.length - 1; i >= 0; i--) ctx.lineTo(xs[i], yBot[i]);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      function drawHouseLoadChart(canvasId, normalized) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const points = (solarDayData && solarDayData.points) || [];
+        if (!points.length) {
+          ctx.fillStyle = "#666";
+          ctx.fillText("No data loaded.", 10, 20);
+          return;
+        }
+
+        const pts = [...points].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+        const mixes = [];
+        for (const p of pts) {
+          const tMs = Date.parse(p.ts);
+          if (Number.isNaN(tMs)) continue;
+          const mix = houseMix(p);
+          if (normalized && mix.house <= 0) continue;
+          if (normalized) {
+            mixes.push({
+              tMs,
+              house: 100,
+              solar: mix.solar / mix.house * 100,
+              battery: mix.battery / mix.house * 100,
+              grid: mix.grid / mix.house * 100,
+              watts: mix,
+            });
+          } else {
+            mixes.push({ tMs, ...mix, watts: mix });
+          }
+        }
+        if (!mixes.length) {
+          ctx.fillStyle = "#666";
+          ctx.fillText(normalized ? "No house load to normalize." : "No power data.", 10, 20);
+          return;
+        }
+
+        const { left, top, w, h } = chartGeometry(canvas);
+        const minY = 0;
+        let maxY = 100;
+        if (!normalized) {
+          maxY = 0;
+          for (const m of mixes) maxY = Math.max(maxY, m.house);
+          if (maxY <= 0) maxY = 100;
+          maxY = maxY * 1.1;
+        }
+
+        function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
+
+        const dayIso = document.getElementById("day").value;
+        const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+        function xFor(tMs) { return left + ((tMs - dayStart) / daySpan) * w; }
+        const useKw = !normalized && maxY >= 1000;
+        const yFmt = normalized
+          ? (v) => String(Math.round(v))
+          : (v) => useKw ? (v / 1000).toFixed(2) : String(Math.round(v));
+        const unit = normalized ? "%" : (useKw ? "kW" : "W");
+
+        ctx.strokeStyle = "#eee";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 24; i++) {
+          const x = left + (i / 24) * w;
+          ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + h); ctx.stroke();
+        }
+        const yTicks = normalized ? 5 : 5;
+        for (let i = 0; i <= yTicks; i++) {
+          const y = top + (i / yTicks) * h;
+          ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.strokeStyle = "#1565c0";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        const y0 = yFor(0);
+        ctx.beginPath();
+        ctx.moveTo(left, y0);
+        ctx.lineTo(left + w, y0);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.strokeStyle = "#bbb";
+        ctx.beginPath();
+        ctx.moveTo(left, top);
+        ctx.lineTo(left, top + h);
+        ctx.lineTo(left + w, top + h);
+        ctx.stroke();
+
+        ctx.fillStyle = "#444";
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        for (let i = 0; i <= yTicks; i++) {
+          const v = maxY - (i / yTicks) * (maxY - minY);
+          const y = top + (i / yTicks) * h;
+          ctx.fillText(yFmt(v), 8, y + 4);
+        }
+        ctx.fillText(unit, 8, 16);
+
+        for (let i = 0; i <= 24; i += 3) {
+          const x = left + (i / 24) * w;
+          const label = String(i).padStart(2, "0") + ":00";
+          ctx.fillText(label, x - 14, top + h + 10);
+        }
+
+        const xs = mixes.map((m) => xFor(m.tMs));
+        const yZero = mixes.map(() => yFor(0));
+        const ySolar = mixes.map((m) => yFor(m.solar));
+        const ySolarBat = mixes.map((m) => yFor(m.solar + m.battery));
+        const yHouse = mixes.map((m) => yFor(m.house));
+
+        ctx.fillStyle = hexAlpha(HOUSE_LAYERS[0].color, 0.88);
+        fillBetween(ctx, xs, ySolar, yZero);
+        ctx.fillStyle = hexAlpha(HOUSE_LAYERS[1].color, 0.82);
+        fillBetween(ctx, xs, ySolarBat, ySolar);
+        ctx.fillStyle = hexAlpha(HOUSE_LAYERS[2].color, 0.75);
+        fillBetween(ctx, xs, yHouse, ySolarBat);
+
+        drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, true);
+
+        ctx.strokeStyle = HOUSE_LINE.color;
+        ctx.lineWidth = 2.25;
+        ctx.beginPath();
+        if (normalized) {
+          const y100 = yFor(100);
+          ctx.moveTo(left, y100);
+          ctx.lineTo(left + w, y100);
+        } else {
+          strokeSmoothLineThroughPoints(ctx, mixes.map((m, i) => ({ x: xs[i], y: yHouse[i] })));
+        }
+        ctx.stroke();
+
+        drawKosiceSolarMarkers(ctx, left, w, top, h, dayStart, daySpan, dayIso, false);
+
+        let lx = left + 8, ly = top + 22;
+        for (const layer of HOUSE_LAYERS) {
+          ctx.fillStyle = layer.color;
+          ctx.fillRect(lx, ly - 10, 10, 10);
+          ctx.fillStyle = "#222";
+          ctx.fillText(layer.label, lx + 14, ly - 1);
+          ly += 16;
+        }
+        ctx.strokeStyle = HOUSE_LINE.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly - 5);
+        ctx.lineTo(lx + 10, ly - 5);
+        ctx.stroke();
+        ctx.fillStyle = "#222";
+        ctx.fillText(normalized ? "House 100%" : HOUSE_LINE.label, lx + 14, ly - 1);
+
+        const hoverMs = normalized ? hoverMixMs : hoverPowerMs;
+        if (hoverMs !== null) {
+          let best = null, bestD = Infinity;
+          for (const m of mixes) {
+            const d = Math.abs(m.tMs - hoverMs);
+            if (d < bestD) { bestD = d; best = m; }
+          }
+          const lines = [];
+          if (best) {
+            const wts = best.watts;
+            if (normalized) {
+              const pct = (part) => `${Math.round(part)}%`;
+              lines.push({ color: HOUSE_LINE.color, label: "House", value: formatWatts(wts.house) + " (100%)" });
+              lines.push({ color: HOUSE_LAYERS[0].color, label: "Solar", value: pct(best.solar) + " · " + formatWatts(wts.solar) });
+              lines.push({ color: HOUSE_LAYERS[1].color, label: "Battery", value: pct(best.battery) + " · " + formatWatts(wts.battery) });
+              lines.push({ color: HOUSE_LAYERS[2].color, label: "Grid", value: pct(best.grid) + " · " + formatWatts(wts.grid) });
+            } else {
+              const pct = (part) => wts.house > 0 ? ` (${Math.round(part / wts.house * 100)}%)` : "";
+              lines.push({ color: HOUSE_LINE.color, label: "House", value: formatWatts(wts.house) });
+              lines.push({ color: HOUSE_LAYERS[0].color, label: "Solar", value: formatWatts(wts.solar) + pct(wts.solar) });
+              lines.push({ color: HOUSE_LAYERS[1].color, label: "Battery", value: formatWatts(wts.battery) + pct(wts.battery) });
+              lines.push({ color: HOUSE_LAYERS[2].color, label: "Grid", value: formatWatts(wts.grid) + pct(wts.grid) });
+            }
+          }
+          drawTooltip(ctx, canvas, hoverMs, lines);
+        }
+      }
+
+      function drawPowerChart() {
+        drawHouseLoadChart("chartPower", false);
+      }
+
+      function drawMixChart() {
+        drawHouseLoadChart("chartMix", true);
+      }
+
+      function drawSocChart() {
+        const canvas = document.getElementById("chartSoc");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const points = (solarDayData && solarDayData.points) || [];
+        if (!points.length) {
+          ctx.fillStyle = "#666";
+          ctx.fillText("No data loaded.", 10, 20);
+          return;
+        }
+
+        const { left, top, w, h } = chartGeometry(canvas);
+        const minY = 0;
+        const maxY = 100;
+        function yFor(v) { return top + (1 - (v - minY) / (maxY - minY)) * h; }
+
+        const dayIso = document.getElementById("day").value;
+        const { start: dayStart, span: daySpan } = dayBoundsMs(dayIso);
+
+        ctx.strokeStyle = "#eee";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 24; i++) {
+          const x = left + (i / 24) * w;
+          ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + h); ctx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+          const y = top + (i / 5) * h;
+          ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + w, y); ctx.stroke();
+        }
+
+        ctx.strokeStyle = "#bbb";
+        ctx.beginPath();
+        ctx.moveTo(left, top);
+        ctx.lineTo(left, top + h);
+        ctx.lineTo(left + w, top + h);
+        ctx.stroke();
+
+        ctx.fillStyle = "#444";
+        ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        for (let i = 0; i <= 5; i++) {
+          const v = maxY - (i / 5) * (maxY - minY);
+          const y = top + (i / 5) * h;
+          ctx.fillText(String(Math.round(v)), 8, y + 4);
+        }
+        ctx.fillText("%", 8, 16);
+
+        for (let i = 0; i <= 24; i += 3) {
+          const x = left + (i / 24) * w;
+          const label = String(i).padStart(2, "0") + ":00";
+          ctx.fillText(label, x - 14, top + h + 10);
+        }
+
+        const pts = [...points];
+        pts.sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts));
+        ctx.strokeStyle = SOC_METRIC.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let seg = [];
+        const flushSeg = () => {
+          if (seg.length) strokeSmoothLineThroughPoints(ctx, seg);
+          seg = [];
+        };
+        for (const p of pts) {
+          const n = valueFromPoint(p, SOC_METRIC.key);
+          if (Number.isNaN(n)) {
+            flushSeg();
+            continue;
+          }
+          const tMs = Date.parse(p.ts);
+          if (Number.isNaN(tMs)) {
+            flushSeg();
+            continue;
+          }
+          const x = left + ((tMs - dayStart) / daySpan) * w;
+          const y = yFor(n);
+          seg.push({ x, y });
+        }
+        flushSeg();
+        ctx.stroke();
+
+        ctx.fillStyle = SOC_METRIC.color;
+        ctx.fillRect(left + 8, top - 2, 10, 10);
+        ctx.fillStyle = "#222";
+        ctx.fillText(SOC_METRIC.label, left + 22, top + 7);
+
+        if (hoverSocMs !== null) {
+          const p = nearestPoint(pts, hoverSocMs);
+          const lines = [];
+          if (p) {
+            const n = valueFromPoint(p, SOC_METRIC.key);
+            if (!Number.isNaN(n)) {
+              lines.push({ color: SOC_METRIC.color, label: SOC_METRIC.label, value: formatSoc(n) });
+            }
+          }
+          drawTooltip(ctx, canvas, hoverSocMs, lines);
+        }
+      }
+
+      function drawCharts() {
+        drawPowerChart();
+        drawMixChart();
+        drawSocChart();
+      }
+
+      async function fetchSolarDay() {
+        const dayEl = document.getElementById("day");
+        const day = dayEl.value;
+        updateNextDayButton();
+        try {
+          const resp = await fetch("/api/solar_day", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ day }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(JSON.stringify(data));
+          solarDayData = data;
+          const n = (data.points || []).length;
+          const statusEl = document.getElementById("status");
+          statusEl.textContent = `Loaded ${n} sample(s).`;
+          statusEl.classList.remove("err");
+          try {
+            renderLatest();
+            drawCharts();
+          } catch (drawErr) {
+            statusEl.textContent = `Loaded ${n} sample(s). Chart error: ` + drawErr;
+            statusEl.classList.add("err");
+          }
+        } catch (e) {
+          const statusEl = document.getElementById("status");
+          statusEl.textContent = "Failed to load day data: " + e;
+          statusEl.classList.add("err");
+        }
+      }
+
+      function setHoverMs(kind, tMs) {
+        if (kind === "power") hoverPowerMs = tMs;
+        else if (kind === "mix") hoverMixMs = tMs;
+        else hoverSocMs = tMs;
+      }
+
+      function attachChartInteractions(canvasId, kind) {
+        const canvas = document.getElementById(canvasId);
+        canvas.addEventListener("mousemove", (ev) => {
+          if (!solarDayData || !solarDayData.points) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = ev.clientX - rect.left;
+          const { left, w } = chartGeometry(canvas);
+          const xCanvas = (x / rect.width) * canvas.width;
+          if (xCanvas < left || xCanvas > left + w) {
+            setHoverMs(kind, null);
+            drawCharts();
+            return;
+          }
+          const frac = (xCanvas - left) / w;
+          setHoverMs(kind, timeMsFromMouseFrac(frac));
+          drawCharts();
+        });
+        canvas.addEventListener("mouseleave", () => {
+          setHoverMs(kind, null);
+          drawCharts();
+        });
+      }
+
+      const dayEl = document.getElementById("day");
+      dayEl.value = todayIso();
+      dayEl.addEventListener("change", fetchSolarDay);
+      document.getElementById("prevDay").addEventListener("click", () => shiftDay(-1));
+      document.getElementById("nextDay").addEventListener("click", () => shiftDay(1));
+      attachChartInteractions("chartPower", "power");
+      attachChartInteractions("chartMix", "mix");
+      attachChartInteractions("chartSoc", "soc");
+      fetchSolarDay();
+    </script>
+  </body>
+</html>

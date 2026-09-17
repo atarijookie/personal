@@ -133,6 +133,16 @@ CREATE TABLE IF NOT EXISTS sensors (
   name  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS solar_raw (
+  id                  BIGSERIAL PRIMARY KEY,
+  datetime            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  pv_power_w          DOUBLE PRECISION,
+  grid_power_w        DOUBLE PRECISION,
+  battery_power_w     DOUBLE PRECISION,
+  house_load_power_w  DOUBLE PRECISION,
+  battery_soc_pct     DOUBLE PRECISION
+);
+
 -- Grant privileges (idempotent)
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${ROLE_NAME};
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${ROLE_NAME};
